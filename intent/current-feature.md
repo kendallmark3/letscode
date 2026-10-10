@@ -70,3 +70,16 @@ Move Let's Code from a single-browser demonstration into a simple real-user expe
 
 ## Success / Evidence
 The twelve demonstrations listed under "Success and Evidence" in `intent/intentv1.md`, shown with separate authenticated users and enforced by the authoritative application state. Existing rule coverage is kept and extended.
+
+---
+
+# Intent Delta 3: no leaving a team (2026-10-10)
+
+## Observation
+After V2, a member who accepts an invitation cannot leave the team. Mark was asked whether that should change.
+
+## Keep
+Acceptance commits a participant to that team for the competition. Only a draft with no other members can be abandoned.
+
+## New Boundary
+Do not add a way to leave a forming team.

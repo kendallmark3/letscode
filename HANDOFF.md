@@ -50,7 +50,7 @@ The same flow was also driven in a headless browser with eight separate signed-i
 
 ## Decisions I made where the intent left room
 - **Who presses Join Competition**: the person who started the team.
-- **Leaving a team is still not possible.** The intent says membership "may still change within the existing team rules" before enrollment, and the existing rules have no leave, only abandoning an empty draft. So a member who changes their mind after accepting is stuck until the next competition. This is the first thing I would ask you about.
+- **Leaving a team is not possible, by Mark's decision (2026-10-10).** Accepting an invitation commits a participant to that team for the competition. Only an empty draft can be abandoned.
 - **Closing enrollment also stops opting in and inviting**, not only creating, accepting and enrolling, since neither could lead anywhere.
 - **A competition goes live with enrollment open.** The organizer closes it at the cutoff and can reopen it by hand.
 - **Only signed-in participants can browse people.** In V1 a visitor could; with real people that seemed wrong.
