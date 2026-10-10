@@ -1,14 +1,14 @@
 import * as D from './domain.js';
 
 const STORAGE_KEY = 'lets-code-demo-v1';
-const VIEWS = ['challenge', 'people', 'team', 'inbox'];
+const VIEWS = ['challenge', 'people', 'team', 'inbox', 'admin'];
 const SKILL_IDEAS = ['JavaScript', 'Python', 'Java', 'C#', 'Testing', 'UI design', 'APIs', 'Databases', 'Cloud', 'AI integration', 'Product thinking', 'Presentation'];
 
 const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
 
 let state;
-const ui = { view: 'challenge', query: '', profileOpen: false, pendingAvatar: null, formError: '' };
+const ui = { view: 'challenge', query: '', profileOpen: false, pendingAvatar: null, formError: '', editing: null };
 
 // ---------- state ----------
 
@@ -29,8 +29,8 @@ async function seed() {
 
 async function load() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved?.version === 1) return saved;
+    const saved = D.migrate(JSON.parse(localStorage.getItem(STORAGE_KEY)));
+    if (saved) return saved;
   } catch {
     // fall through to a fresh demo
   }
@@ -70,6 +70,9 @@ function avatar(p, cls = '') {
   const initials = a?.type === 'initials' ? a.value : D.initialsOf(p.displayName);
   return `<span class="avatar ${cls}" style="--hue:${hue(p.id)}" aria-hidden="true">${h(initials)}</span>`;
 }
+
+const formatDate = (d, opts) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', { timeZone: 'UTC', ...opts });
+const longDate = (c) => (c.date ? formatDate(c.date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'Date to be announced');
 
 const chips = (skills) => `<ul class="chips">${skills.map((s) => `<li>${h(s)}</li>`).join('')}</ul>`;
 
@@ -121,7 +124,7 @@ function demoBar() {
 function header() {
   const user = me();
   const inboxCount = user && D.pendingIncoming(state, user.id) ? 1 : 0;
-  const labels = { challenge: 'Challenge', people: 'People', team: 'My team', inbox: 'Inbox' };
+  const labels = { challenge: 'Challenge', people: 'People', team: 'My team', inbox: 'Inbox', admin: 'Admin' };
   const tabs = VIEWS.map(
     (v) => `<a href="#${v}" data-fk="tab-${v}"${ui.view === v ? ' aria-current="page"' : ''}>${labels[v]}${
       v === 'inbox' && inboxCount ? `<span class="badge" aria-label="1 invitation">1</span>` : ''
@@ -139,7 +142,7 @@ function statusLine(user) {
   if (team && team.memberIds.length > 1) return `On <strong>${h(team.name)}</strong>`;
   const bits = [];
   if (team) bits.push(`Drafting <strong>${h(team.name)}</strong>`);
-  bits.push(user.open ? 'Open to invitations' : 'Not accepting invitations');
+  bits.push(D.isOpen(state, user.id) ? 'Open to invitations' : 'Not accepting invitations');
   return bits.join(' · ');
 }
 
@@ -252,14 +255,15 @@ function nextStep() {
 }
 
 function availabilityButton(user) {
-  return user.open
+  return D.isOpen(state, user.id)
     ? `<button class="btn ghost" data-action="pause" data-fk="availability">Pause invitations</button>`
     : `<button class="btn primary" data-action="open" data-fk="availability">Open me to invitations</button>`;
 }
 
 function challengeView() {
-  const c = state.challenge;
-  const prize = `$${Number(c.illustrativePrizeUSD).toLocaleString('en-US')}`;
+  const c = D.liveChallenge(state);
+  if (!c) return noChallenge('No challenge is open right now');
+  const prize = c.illustrativePrizeUSD ? `$${Number(c.illustrativePrizeUSD).toLocaleString('en-US')}` : '';
   return `
   <section class="hero">
     <p class="eyebrow">Intent Driven Saturdays <span class="tag warn">Illustrative demo</span></p>
@@ -267,12 +271,13 @@ function challengeView() {
     <p class="tagline">Find your team. Build your proof.</p>
     <p class="lede">${h(c.preview)}</p>
     <dl class="facts">
+      <div><dt>Date</dt><dd>${c.date ? formatDate(c.date, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'To be announced'}</dd></div>
       <div><dt>Time</dt><dd>${h(c.durationHours)} hours</dd></div>
       <div><dt>Team</dt><dd>${h(c.teamSize)} people</dd></div>
       <div><dt>Entry</dt><dd>Free</dd></div>
-      <div class="illustrative"><dt>Sample prize</dt><dd>${prize}</dd><dd class="hint">Illustrative only. Not funded.</dd></div>
+      ${prize ? `<div class="illustrative"><dt>Sample prize</dt><dd>${prize}</dd><dd class="hint">Illustrative only. Not funded.</dd></div>` : ''}
     </dl>
-    <p class="notice"><strong>This is a demonstration.</strong> ${h(c.dateLabel)}. The prize amount is an example of what a sponsored event could offer; no event, prize or sponsor exists yet.</p>
+    <p class="notice"><strong>This is a demonstration.</strong> ${prize ? 'The prize amount is an example of what a sponsored event could offer. ' : ''}No event, prize or sponsor exists yet.</p>
   </section>
   ${nextStep()}
   <section class="steps" aria-label="How it works">
@@ -442,6 +447,16 @@ function teamView() {
   }`;
 }
 
+function noChallenge(title) {
+  return `
+  <h1 tabindex="-1">${title}</h1>
+  <div class="empty">
+    <h3>Nothing to join yet</h3>
+    <p>Teams form around a live challenge. When an organizer makes one live, it appears here.</p>
+    <a class="btn ghost" href="#admin">Organizers: manage challenges</a>
+  </div>`;
+}
+
 function noIdentity(title, text) {
   return `
   <h1 tabindex="-1">${title}</h1>
@@ -482,13 +497,14 @@ function inboxView() {
   if (!user) return noIdentity('Inbox', 'Invitations to join a team arrive here, one at a time.');
   const committed = D.isCommitted(state, user.id);
   const active = D.pendingIncoming(state, user.id);
-  const past = state.invitations.filter((i) => i.toId === user.id && i.status !== 'pending').reverse();
+  const challengeId = D.liveChallenge(state).id;
+  const past = state.invitations.filter((i) => i.challengeId === challengeId && i.toId === user.id && i.status !== 'pending').reverse();
   let body;
   if (active) {
     body = invitationCard(active, user);
   } else if (committed) {
     body = `<div class="empty"><h3>You’ve joined a team</h3><p>You’re committed for this event, so no further invitations will arrive.</p><a class="btn primary" href="#team">View my team</a></div>`;
-  } else if (user.open) {
+  } else if (D.isOpen(state, user.id)) {
     body = `<div class="empty"><h3>Nothing yet</h3><p>You’re visible in discovery. When a team invites you, it appears here. Only one invitation reaches you at a time.</p></div>`;
   } else {
     body = `<div class="empty"><h3>Invitations are off</h3><p>You’re not shown in discovery and no team can invite you. Turn invitations on when you’re ready.</p></div>`;
@@ -502,7 +518,7 @@ function inboxView() {
       ? ''
       : `<section class="card">
           <h2>Availability</h2>
-          <p class="muted">${user.open ? 'You are open to invitations for this challenge.' : 'You are not accepting invitations.'}${active ? ' Pausing closes the invitation above.' : ''}</p>
+          <p class="muted">${D.isOpen(state, user.id) ? 'You are open to invitations for this challenge.' : 'You are not accepting invitations.'}${active ? ' Pausing closes the invitation above.' : ''}</p>
           ${availabilityButton(user)}
         </section>`
   }
@@ -510,6 +526,74 @@ function inboxView() {
     past.length
       ? `<section class="card"><h2>Earlier invitations</h2><ul class="list quiet">${past.map((i) => `<li><div><strong>${h(i.teamName)}</strong></div><span class="tag">${STATUS_LABEL[i.status]}</span></li>`).join('')}</ul></section>`
       : ''
+  }`;
+}
+
+function challengeForm(c) {
+  return `
+  <section class="card form-card" aria-labelledby="chf-h">
+    <h2 id="chf-h" tabindex="-1">${c ? `Edit “${h(c.title)}”` : 'Add a challenge'}</h2>
+    <form data-form="challenge" data-id="${h(c?.id ?? '')}" novalidate>
+      <div class="field">
+        <label for="ch-title">Title</label>
+        <input id="ch-title" name="title" maxlength="80" required value="${h(c?.title ?? '')}">
+      </div>
+      <div class="field">
+        <label for="ch-preview">Description <span class="hint">what teams will see before the start</span></label>
+        <textarea id="ch-preview" name="preview" rows="4" maxlength="600">${h(c?.preview ?? '')}</textarea>
+      </div>
+      <div class="field">
+        <label for="ch-date">Date</label>
+        <input id="ch-date" name="date" type="date" value="${h(c?.date ?? '')}">
+      </div>
+      <p class="hint">A draft can be saved with just a title. It needs a title, description and date to go live.</p>
+      <p class="form-error" role="alert"></p>
+      <div class="row">
+        <button class="btn primary">${c ? 'Save changes' : 'Save as draft'}</button>
+        <button type="button" class="btn ghost" data-action="cancel-challenge">Cancel</button>
+      </div>
+    </form>
+  </section>`;
+}
+
+function challengeRow(c) {
+  const teams = state.teams.filter((t) => t.challengeId === c.id).length;
+  const isLive = c.status === 'live';
+  return `
+  <li class="card challenge-row">
+    <div class="challenge-info">
+      <h2>${h(c.title)} <span class="tag ${isLive ? 'ok' : ''}">${isLive ? 'Live' : 'Draft'}</span></h2>
+      <p class="muted">${longDate(c)} · ${teams} ${teams === 1 ? 'team' : 'teams'}</p>
+      ${c.preview ? `<p>${h(c.preview)}</p>` : '<p class="muted">No description yet.</p>'}
+    </div>
+    <div class="row">
+      ${
+        isLive
+          ? `<button class="btn ghost" data-action="unpublish" data-id="${h(c.id)}" data-fk="live-${h(c.id)}">Take offline</button>`
+          : `<button class="btn primary" data-action="publish" data-id="${h(c.id)}" data-fk="live-${h(c.id)}">Make live</button>`
+      }
+      <button class="btn ghost" data-action="edit-challenge" data-id="${h(c.id)}" data-fk="edit-${h(c.id)}">Edit</button>
+      ${!isLive && !teams ? `<button class="btn danger" data-action="delete-challenge" data-id="${h(c.id)}" data-fk="delete-${h(c.id)}">Delete</button>` : ''}
+    </div>
+  </li>`;
+}
+
+function adminView() {
+  const live = D.liveChallenge(state);
+  const editing = ui.editing && ui.editing !== 'new' ? state.challenges.find((c) => c.id === ui.editing) : null;
+  return `
+  <h1 tabindex="-1">Challenges</h1>
+  <p class="lede">Add challenges, give each a date, and make one live. Participants see only the live challenge.</p>
+  <p class="notice small">${live ? `<strong>${h(live.title)}</strong> is live.` : '<strong>Nothing is live.</strong> Participants cannot form teams.'} One challenge is live at a time. In this demo, challenges are stored in this browser only.</p>
+  ${
+    ui.editing
+      ? challengeForm(editing)
+      : `<div><button class="btn primary" data-action="new-challenge" data-fk="new-challenge">Add a challenge</button></div>`
+  }
+  ${
+    state.challenges.length
+      ? `<ul class="challenge-list">${state.challenges.map(challengeRow).join('')}</ul>`
+      : `<div class="empty"><h3>No challenges yet</h3><p>Add the first one to get started.</p></div>`
   }`;
 }
 
@@ -522,7 +606,11 @@ function render({ focusHeading = false } = {}) {
     save();
   }
   const fk = document.activeElement?.dataset?.fk;
-  const view = { challenge: challengeView, people: peopleView, team: teamView, inbox: inboxView }[ui.view]();
+  const titles = { people: 'Find teammates', team: 'My team', inbox: 'Inbox' };
+  const view =
+    titles[ui.view] && !D.liveChallenge(state)
+      ? noChallenge(titles[ui.view])
+      : { challenge: challengeView, people: peopleView, team: teamView, inbox: inboxView, admin: adminView }[ui.view]();
   app.innerHTML = `
     ${demoBar()}
     ${header()}
@@ -630,6 +718,18 @@ const actions = {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     c.scrollBy({ left: Number(el.dataset.dir) * step, behavior: reduce ? 'auto' : 'smooth' });
   },
+  'new-challenge': () => editChallenge('new'),
+  'edit-challenge': (el) => editChallenge(el.dataset.id),
+  'cancel-challenge'() {
+    ui.editing = null;
+    render({ focusHeading: true });
+  },
+  publish: (el) => act((s) => D.publishChallenge(s, el.dataset.id), 'Challenge is live. Participants can now form teams.'),
+  unpublish: (el) => act((s) => D.unpublishChallenge(s, el.dataset.id), 'Challenge taken offline. Its teams are kept.'),
+  'delete-challenge'(el) {
+    if (!confirm('Delete this draft challenge?')) return;
+    act((s) => D.deleteChallenge(s, el.dataset.id), 'Draft deleted.');
+  },
   'skip-time'() {
     state = { ...state, clockOffsetMs: state.clockOffsetMs + D.INVITE_TTL_MS };
     const before = state.invitations.filter((i) => i.status === 'pending').length;
@@ -644,7 +744,7 @@ const actions = {
     localStorage.removeItem(STORAGE_KEY);
     state = await seed();
     save();
-    Object.assign(ui, { query: '', profileOpen: false, pendingAvatar: null, formError: '' });
+    Object.assign(ui, { query: '', profileOpen: false, pendingAvatar: null, formError: '', editing: null });
     toast('Demo reset to its starting point.');
     go('challenge');
   },
@@ -684,6 +784,21 @@ app.addEventListener('submit', (e) => {
   const data = new FormData(form);
   if (form.dataset.form === 'create-team') {
     if (act((s) => D.createTeam(s, s.currentUserId, data.get('name'), now()), 'Team created. You hold the first of four seats.')) go('team');
+  } else if (form.dataset.form === 'challenge') {
+    const id = form.dataset.id || undefined;
+    try {
+      state = D.saveChallenge(state, { id, title: data.get('title'), preview: data.get('preview'), date: data.get('date') });
+    } catch (err) {
+      if (!(err instanceof D.DomainError)) throw err;
+      form.querySelector('.form-error').textContent = err.message;
+      const field = { bad_title: 'ch-title', bad_preview: 'ch-preview', bad_date: 'ch-date' }[err.code];
+      document.getElementById(field)?.focus();
+      return;
+    }
+    save();
+    ui.editing = null;
+    toast(id ? 'Challenge updated.' : 'Draft saved. Make it live when it is ready.');
+    render({ focusHeading: true });
   } else if (form.dataset.form === 'profile') {
     try {
       state = D.addParticipant(state, {
@@ -706,6 +821,12 @@ app.addEventListener('submit', (e) => {
     render({ focusHeading: true });
   }
 });
+
+function editChallenge(id) {
+  ui.editing = id;
+  render();
+  document.getElementById('chf-h')?.focus();
+}
 
 // Shrink a chosen picture to a small square so it fits in browser storage.
 function readPhoto(file) {

@@ -20,3 +20,22 @@ The experience must feel polished on phone and desktop: legible cards, clear act
 
 ## Constraints / Boundaries
 The Boundaries section of INTENT-V1.md is authoritative and applies in full.
+
+---
+
+# Intent Delta 1: organizer-managed challenges (2026-10-10)
+
+## Observation
+V1 has one fixed challenge. There is nowhere to put challenges in, date them, or make them live.
+
+## Keep
+Each person creates their own team from the challenge or accepts an invitation. All V1 team, invitation and privacy rules. The illustrative-demo labelling.
+
+## Change
+An admin screen where an organizer adds a challenge (title, description, date), edits it, makes it live, and takes it offline. Participants see only the live challenge, with its date, and form teams from it.
+
+## New Boundary
+One challenge is live at a time. A challenge needs a title, description and date before it can go live. Teams and invitations belong to the challenge they were formed in. Opting in to invitations is per challenge.
+
+## Evidence
+Mark adds a challenge with a date, makes it live, and sees it on the Challenge page; he creates a team from it. With nothing live, participants see a clear "no challenge open" state and cannot form teams. A second challenge cannot go live while one is.

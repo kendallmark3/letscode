@@ -150,7 +150,7 @@ main > * { min-width: 0; }
 .btn.icon { width: 44px; padding: 0; font-size: 1.5rem; line-height: 1; border-color: var(--line); background: var(--surface); }
 .btn:disabled { opacity: 0.4; cursor: default; }
 
-input, select {
+input, select, textarea {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line); border-radius: 12px; min-height: 44px; padding: 8px 12px; max-width: 100%;
 }
@@ -158,7 +158,8 @@ input[type="file"] { padding: 8px; min-width: 0; flex: 1; }
 .demo-controls select { min-height: 36px; padding-block: 4px; }
 label { font-weight: 600; }
 .field { display: grid; gap: 6px; }
-.field input:not([type="file"]) { width: 100%; }
+.field input:not([type="file"]), .field textarea { width: 100%; }
+textarea { resize: vertical; line-height: 1.5; }
 .inline-form { display: grid; gap: 6px; }
 .inline-form input { flex: 1 1 200px; }
 .form-error { color: var(--danger); font-weight: 600; min-height: 1.5em; }
@@ -261,6 +262,12 @@ form { display: grid; gap: 14px; }
 .invitation { border-color: var(--brand); border-width: 2px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 
+/* ---------- admin ---------- */
+
+.challenge-list { display: grid; gap: 14px; }
+.challenge-row { grid-template-columns: 1fr; }
+.challenge-info { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+
 /* ---------- toast ---------- */
 
 .toast {
@@ -274,6 +281,7 @@ form { display: grid; gap: 14px; }
 
 @media (max-width: 560px) {
   .site-header { justify-content: center; }
+  nav a { padding: 8px 9px; font-size: 0.875rem; }
   .me-email { margin-left: 0; text-align: left; flex-basis: 100%; }
   .me-email br { display: none; }
   .me-email .hint::after { content: ": "; }
