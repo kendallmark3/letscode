@@ -1,14 +1,15 @@
 {
   "name": "lets-code",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Let's Code V1: a local demonstration of team formation for one challenge.",
+  "description": "Let's Code: form a four-person team for a competition.",
   "scripts": {
     "start": "node server.mjs",
+    "demo": "DEMO=1 node server.mjs",
     "test": "node --test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }

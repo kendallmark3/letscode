@@ -31,7 +31,7 @@ test('unavailable people are not discoverable and cannot be invited', () => {
 
 test('a new profile is unavailable by default', () => {
   const s = D.addParticipant(fresh(), { email: 'me@example.com', displayName: 'New Person', skills: ['Go'] });
-  const me = D.findPerson(s, s.currentUserId);
+  const me = s.participants.at(-1);
   assert.equal(D.isOpen(s, me.id), false);
   assert.ok(!D.discover(s, ALEX).some((p) => p.id === me.id));
   assert.throws(() => D.addParticipant(fresh(), { email: 'nope', displayName: 'X', skills: ['Go'] }), code('bad_email'));
@@ -266,22 +266,89 @@ test('only an offline challenge without teams can be deleted', () => {
   assert.ok(!s.challenges.some((c) => c.id === id));
 });
 
-test('a saved V1 state is migrated with its progress', () => {
-  const v1 = {
-    version: 1, notice: 'n', challenge: demo.challenge, seq: 3, currentUserId: ALEX, clockOffsetMs: 0,
-    participants: [
-      { id: ALEX, displayName: 'Alex Morgan', email: 'a@example.com', skills: ['JS'], open: false, shareEmailWithTeam: false },
-      { id: PRIYA, displayName: 'Priya Shah', email: 'p@example.com', skills: ['Python'], open: true, shareEmailWithTeam: false },
-    ],
-    teams: [{ id: 'team-1', name: 'T', creatorId: ALEX, memberIds: [ALEX] }],
-    invitations: [{ id: 'inv-2', teamId: 'team-1', teamName: 'T', fromId: ALEX, toId: PRIYA, status: 'pending', createdAt: T0, expiresAt: T0 + D.INVITE_TTL_MS }],
-  };
-  const s = D.migrate(v1);
-  assert.equal(s.version, 2);
-  assert.equal(D.liveChallenge(s).id, LIVE);
-  assert.equal(D.teamOf(s, ALEX).id, 'team-1');
-  assert.equal(D.pendingIncoming(s, PRIYA).id, 'inv-2');
-  assert.ok(D.isOpen(s, PRIYA) && !D.isOpen(s, ALEX));
-  assert.equal(D.migrate(s), s);
-  assert.equal(D.migrate({ version: 99 }), null);
+// ---------- enrollment ----------
+
+const TEAM4 = [PRIYA, JORDAN, SAM];
+
+test('a team moves FORMING, READY, ENROLLED and the organizer is told', () => {
+  let s = D.createTeam(fresh(), ALEX, 'Four', T0);
+  const id = D.teamOf(s, ALEX).id;
+  assert.equal(D.teamView(s, id, ALEX).status, 'FORMING');
+  assert.throws(() => D.enrollTeam(s, ALEX, T0), code('not_ready'));
+  s = teamWith(fresh(), ALEX, TEAM4);
+  const v = D.teamView(s, D.teamOf(s, ALEX).id, ALEX);
+  assert.ok(v.status === 'READY' && v.canEnroll);
+  assert.equal(D.teamView(s, v.id, PRIYA).canEnroll, false);
+  assert.throws(() => D.enrollTeam(s, PRIYA, T0), code('not_creator'));
+  assert.throws(() => D.enrollTeam(s, CASEY, T0), code('no_team'));
+  s = D.enrollTeam(s, ALEX, T0);
+  assert.equal(D.teamView(s, v.id, PRIYA).status, 'ENROLLED');
+  assert.deepEqual(D.teamOf(s, SAM).memberIds, [ALEX, ...TEAM4]);
+  assert.throws(() => D.enrollTeam(s, ALEX, T0), code('already_enrolled'));
+  const admin = D.viewFor(s, { organizer: true }).admin;
+  assert.equal(admin.notifications.length, 1);
+  assert.equal(admin.notifications[0].teamName, "Alex Morgan's team");
+  assert.equal(admin.challenges[0].enrolled[0].members.length, 4);
+  assert.equal(D.viewFor(D.markNotificationsSeen(s), { organizer: true }).admin.notifications.length, 0);
+});
+
+test('closing enrollment stops team formation and enrollment, but not viewing', () => {
+  let s = teamWith(fresh(), ALEX, TEAM4);
+  s = D.createTeam(s, CASEY, '', T0);
+  s = D.invite(s, CASEY, TAYLOR, T0);
+  const pending = lastInv(s).id;
+  s = D.setEnrollment(s, LIVE, false);
+  assert.throws(() => D.createTeam(s, 'demo-7', '', T0), code('enrollment_closed'));
+  assert.throws(() => D.invite(s, CASEY, 'demo-7', T0), code('enrollment_closed'));
+  assert.throws(() => D.accept(s, pending, TAYLOR, T0), code('enrollment_closed'));
+  assert.throws(() => D.setOpen(s, RILEY, true, T0), code('enrollment_closed'));
+  assert.throws(() => D.enrollTeam(s, ALEX, T0), code('enrollment_closed'));
+  assert.equal(D.teamView(s, D.teamOf(s, ALEX).id, ALEX).canEnroll, false);
+  assert.equal(D.viewFor(s, null).challenge.enrollmentOpen, false);
+  assert.equal(D.viewFor(s, { participantId: ALEX }).team.members.length, 4);
+  // The organizer can reopen by hand.
+  s = D.enrollTeam(D.setEnrollment(s, LIVE, true), ALEX, T0);
+  assert.equal(D.teamOf(s, ALEX).enrolledAt, T0);
+  assert.throws(() => D.setEnrollment(s, 'nope', true), code('unknown_challenge'));
+});
+
+test('an enrolled team does not stop its members joining the next competition', () => {
+  let s = D.enrollTeam(teamWith(fresh(), ALEX, TEAM4), ALEX, T0);
+  let id;
+  [s, id] = draft(s);
+  s = D.publishChallenge(D.unpublishChallenge(s, LIVE), id);
+  assert.equal(D.liveChallenge(s).enrollmentOpen, true);
+  assert.equal(D.viewFor(s, { participantId: PRIYA }).team, null);
+  s = D.createTeam(s, PRIYA, '', T0);
+  s = D.setOpen(s, ALEX, true, T0);
+  s = D.invite(s, PRIYA, ALEX, T0);
+  s = D.accept(s, lastInv(s).id, ALEX, T0);
+  assert.deepEqual(D.teamOf(s, ALEX).memberIds, [PRIYA, ALEX]);
+});
+
+// ---------- per-viewer views ----------
+
+const emailsIn = (v) => [...new Set(JSON.stringify(v).match(/[\w.+-]+@[\w.-]+/g) ?? [])];
+
+test('a visitor sees the competition and nothing about people or teams', () => {
+  const s = teamWith(fresh(), ALEX, [PRIYA]);
+  const v = D.viewFor(s, null);
+  assert.deepEqual(Object.keys(v).sort(), ['challenge', 'role']);
+  assert.equal(v.challenge.title, demo.challenge.title);
+  assert.equal(D.viewFor(s, { participantId: 'nobody' }).role, 'visitor');
+});
+
+test('a participant view holds only their own email, plus teammates who chose to share', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA]);
+  s = D.createTeam(s, CASEY, 'Other', T0);
+  s = D.invite(s, CASEY, JORDAN, T0);
+  assert.deepEqual(emailsIn(D.viewFor(s, { participantId: ALEX })), ['participant1@example.com']);
+  s = D.setShareEmail(s, PRIYA, true);
+  assert.deepEqual(emailsIn(D.viewFor(s, { participantId: ALEX })).sort(), ['participant1@example.com', 'participant2@example.com']);
+  // Someone outside the team sees neither, and nothing of another team's name or invitations.
+  const outsider = D.viewFor(s, { participantId: SAM });
+  assert.deepEqual(emailsIn(outsider), ['participant4@example.com']);
+  assert.ok(!JSON.stringify(outsider).includes('Other') && !JSON.stringify(outsider).includes("Alex Morgan's team"));
+  // The organizer sees no emails at all.
+  assert.deepEqual(emailsIn(D.viewFor(s, { organizer: true })), []);
 });

@@ -80,6 +80,8 @@ a { color: var(--brand); }
   background: var(--accent); color: #fff; border-radius: 6px; padding: 2px 8px; margin-right: 6px;
   font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
 }
+.demo-note code { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 0.8125rem; }
+.account { display: flex; gap: 8px; align-items: center; }
 .demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .demo-controls select { max-width: 100%; }
 
@@ -154,16 +156,17 @@ input, select, textarea {
   font: inherit; color: var(--ink); background: var(--surface);
   border: 1px solid var(--line); border-radius: 12px; min-height: 44px; padding: 8px 12px; max-width: 100%;
 }
-input[type="file"] { padding: 8px; min-width: 0; flex: 1; }
+input[type="file"] { padding: 8px; min-width: 0; width: 100%; flex: 1 1 160px; }
 .demo-controls select { min-height: 36px; padding-block: 4px; }
 label { font-weight: 600; }
-.field { display: grid; gap: 6px; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .field input:not([type="file"]), .field textarea { width: 100%; }
 textarea { resize: vertical; line-height: 1.5; }
 .inline-form { display: grid; gap: 6px; }
 .inline-form input { flex: 1 1 200px; }
 .form-error { color: var(--danger); font-weight: 600; min-height: 1.5em; }
 form { display: grid; gap: 14px; }
+.card > *, form > * { min-width: 0; }
 
 .switch { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; cursor: pointer; overflow-wrap: anywhere; }
 .switch input { width: 22px; height: 22px; min-height: 0; margin-top: 2px; accent-color: var(--brand); flex: none; }
@@ -261,6 +264,13 @@ form { display: grid; gap: 14px; }
 
 .invitation { border-color: var(--brand); border-width: 2px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* ---------- accounts and enrollment ---------- */
+
+.auth { width: min(520px, 100%); margin-inline: auto; }
+.auth h1 { font-size: 1.9rem; }
+.enroll { border: 2px solid var(--accent); background: var(--accent-soft); }
+.enroll.done { border-color: var(--ok); background: var(--ok-soft); }
 
 /* ---------- admin ---------- */
 
