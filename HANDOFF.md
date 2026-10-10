@@ -5,7 +5,7 @@ Requires Node 18 or newer. Nothing to install.
 
 ```
 npm start     # http://localhost:4747  (PORT=8080 npm start to change the port)
-npm test      # 15 rule checks
+npm test      # 22 rule checks
 ```
 
 ## What works
@@ -14,6 +14,7 @@ npm test      # 15 rule checks
 - **People**: search by skill or tap a skill filter; a carousel with Previous/Next buttons, keyboard scrolling and touch. Only name, picture, skills and availability are shown.
 - **My team**: four seats, the team's combined skills, invitations sent with withdraw, and a choice to share your own email with teammates.
 - **Inbox**: at most one invitation at a time, showing the challenge, team, members, skills and remaining seats; accept, decline, or pause.
+- **Admin**: add challenges, give each a title, description and date, make one live, take it offline, delete an unused draft. Participants see only the live challenge.
 - **Demo controls** (top bar): "View as" switches between participants so you can play both sides, "Skip 48 hours" advances the demo clock so invitations expire, "Reset demo" starts over. Progress survives a refresh.
 
 ## A five-minute walkthrough
@@ -24,14 +25,24 @@ npm test      # 15 rule checks
 5. Invite two more people and accept as each: the team completes at four and other invitations close.
 6. Try: View as Riley Jones (unavailable, so never in People); pause invitations with one pending; Skip 48 hours with one pending; create a team as Casey, then accept another team's invitation (it asks you to abandon the draft).
 
+## Challenges (delta 1)
+- One challenge is live at a time. Making a second one live is refused until the first is taken offline.
+- A challenge can be saved as a draft with just a title; it needs a title, description and date to go live.
+- Teams, invitations and opt-ins belong to the challenge they were made in. A new challenge starts with no teams and no one opted in. Taking a challenge offline keeps its teams, and they return if it goes live again.
+- With nothing live, Challenge, People, My team and Inbox show a "nothing to join yet" state and teams cannot form.
+- The sample challenge has no date. It starts live, but needs a date before it can be made live again.
+- Challenges made in the admin screen show no prize. The sample keeps its illustrative $5,000.
+- Progress saved in the browser by the first version is carried forward.
+
 ## How the boundaries are verified
 `npm test` runs `test/domain.test.mjs` against the rules in `src/domain.js`:
-unavailable people cannot be found or invited · discovery, invitations and non-member team views contain no email · email reaches teammates only when its owner shares it · one active incoming invitation per person, explained without naming the other team · accepting commits to one team and removes the person from discovery · a team stops at exactly four and closes its remaining invitations · a decline cannot be resent · only the sender can withdraw · invitations expire after 48 hours · pausing closes the pending invitation · a creator must explicitly abandon an empty draft to join elsewhere, and a draft with members cannot be abandoned.
+unavailable people cannot be found or invited · discovery, invitations and non-member team views contain no email · email reaches teammates only when its owner shares it · one active incoming invitation per person, explained without naming the other team · accepting commits to one team and removes the person from discovery · a team stops at exactly four and closes its remaining invitations · a decline cannot be resent · only the sender can withdraw · invitations expire after 48 hours · pausing closes the pending invitation · a creator must explicitly abandon an empty draft to join elsewhere, and a draft with members cannot be abandoned · one live challenge at a time · a challenge needs title, description and date to go live · nothing forms when nothing is live · teams and opt-ins stay with their challenge · saved V1 progress migrates.
 
-The same flow was also driven end to end in a headless browser at desktop and phone widths (35 checks, no console errors). That script was a one-off and is not in the repository.
+The same flow was also driven end to end in a headless browser at desktop and phone widths (35 checks for team formation, 22 for the admin screen, no console errors). That script was a one-off and is not in the repository.
 
 ## What is simulated
 - **No accounts or sign-in.** "View as" is a demo switch. Anyone using this browser can act as anyone.
+- **No organizer accounts.** Challenges are stored in this browser like everything else.
 - **No server-side data.** Everything, including any email you type, is stored in this browser's local storage. It is not private storage and is not shared between devices or people. Do not open this to public registration.
 - **No messages.** An "invitation" is a record that appears in the other participant's inbox in the same browser. Nothing is emailed.
 - **Time.** Invitations last 48 hours on the demo clock; they expire in real time or when you press "Skip 48 hours".

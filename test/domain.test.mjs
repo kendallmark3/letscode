@@ -32,7 +32,7 @@ test('unavailable people are not discoverable and cannot be invited', () => {
 test('a new profile is unavailable by default', () => {
   const s = D.addParticipant(fresh(), { email: 'me@example.com', displayName: 'New Person', skills: ['Go'] });
   const me = D.findPerson(s, s.currentUserId);
-  assert.equal(me.open, false);
+  assert.equal(D.isOpen(s, me.id), false);
   assert.ok(!D.discover(s, ALEX).some((p) => p.id === me.id));
   assert.throws(() => D.addParticipant(fresh(), { email: 'nope', displayName: 'X', skills: ['Go'] }), code('bad_email'));
   assert.throws(() => D.addParticipant(fresh(), { email: 'a@b.co', displayName: 'X', skills: [] }), code('bad_skills'));
@@ -188,4 +188,100 @@ test('actions do not mutate the state they are given', () => {
   const before = JSON.stringify(s);
   D.invite(D.createTeam(s, ALEX, '', T0), ALEX, PRIYA, T0);
   assert.equal(JSON.stringify(s), before);
+});
+
+// ---------- challenges ----------
+
+const LIVE = 'demo-saturday';
+const draft = (s, fields = {}) => {
+  s = D.saveChallenge(s, { title: 'Second Saturday', preview: 'Build something else.', date: '2026-11-14', ...fields });
+  return [s, s.challenges.at(-1).id];
+};
+
+test('a new challenge is a draft and participants still see only the live one', () => {
+  const [s, id] = draft(fresh());
+  assert.equal(s.challenges.find((c) => c.id === id).status, 'draft');
+  assert.equal(D.liveChallenge(s).id, LIVE);
+  assert.throws(() => D.saveChallenge(fresh(), { title: '' }), code('bad_title'));
+  assert.throws(() => D.saveChallenge(fresh(), { title: 'X', date: '2026-02-31x' }), code('bad_date'));
+});
+
+test('only one challenge is live at a time', () => {
+  let [s, id] = draft(fresh());
+  assert.throws(() => D.publishChallenge(s, id), code('another_live'));
+  s = D.unpublishChallenge(s, LIVE);
+  s = D.publishChallenge(s, id);
+  assert.deepEqual(s.challenges.filter((c) => c.status === 'live').map((c) => c.id), [id]);
+  assert.throws(() => D.publishChallenge(s, LIVE), code('another_live'));
+});
+
+test('a challenge needs a title, description and date to be live', () => {
+  let s = D.unpublishChallenge(fresh(), LIVE);
+  let id;
+  [s, id] = draft(s, { date: '' });
+  assert.throws(() => D.publishChallenge(s, id), code('incomplete'));
+  s = D.saveChallenge(s, { id, title: 'Second Saturday', preview: 'Build something else.', date: '2026-11-14' });
+  s = D.publishChallenge(s, id);
+  assert.equal(D.liveChallenge(s).date, '2026-11-14');
+  // A live challenge cannot be edited into an incomplete one.
+  assert.throws(() => D.saveChallenge(s, { id, title: 'Second Saturday', preview: '', date: '2026-11-14' }), code('incomplete'));
+});
+
+test('with nothing live, no one is discoverable and teams cannot form', () => {
+  const s = D.unpublishChallenge(fresh(), LIVE);
+  assert.equal(D.liveChallenge(s), null);
+  assert.equal(D.discover(s, ALEX).length, 0);
+  assert.throws(() => D.createTeam(s, ALEX, '', T0), code('no_live_challenge'));
+  assert.throws(() => D.setOpen(s, PRIYA, true, T0), code('no_live_challenge'));
+});
+
+test('teams and opt-ins belong to their challenge', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA]);
+  let id;
+  [s, id] = draft(s);
+  s = D.publishChallenge(D.unpublishChallenge(s, LIVE), id);
+  // A new challenge: no one has opted in, and the earlier team does not carry over.
+  assert.equal(D.teamOf(s, PRIYA), null);
+  assert.equal(D.discover(s, ALEX).length, 0);
+  s = D.createTeam(s, CASEY, '', T0);
+  s = D.setOpen(s, PRIYA, true, T0);
+  s = D.invite(s, CASEY, PRIYA, T0);
+  s = D.accept(s, lastInv(s).id, PRIYA, T0);
+  assert.deepEqual(D.teamOf(s, PRIYA).memberIds, [CASEY, PRIYA]);
+  // The first challenge's team is intact when it returns.
+  // (The sample challenge has no date, so it needs one before it can go live again.)
+  s = D.saveChallenge(D.unpublishChallenge(s, id), { id: LIVE, title: 'Sample', preview: 'Sample.', date: '2026-12-05' });
+  s = D.publishChallenge(s, LIVE);
+  assert.deepEqual(D.teamOf(s, PRIYA).memberIds, [ALEX, PRIYA]);
+});
+
+test('only an offline challenge without teams can be deleted', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA]);
+  assert.throws(() => D.deleteChallenge(s, LIVE), code('is_live'));
+  s = D.unpublishChallenge(s, LIVE);
+  assert.throws(() => D.deleteChallenge(s, LIVE), code('has_teams'));
+  let id;
+  [s, id] = draft(s);
+  s = D.deleteChallenge(s, id);
+  assert.ok(!s.challenges.some((c) => c.id === id));
+});
+
+test('a saved V1 state is migrated with its progress', () => {
+  const v1 = {
+    version: 1, notice: 'n', challenge: demo.challenge, seq: 3, currentUserId: ALEX, clockOffsetMs: 0,
+    participants: [
+      { id: ALEX, displayName: 'Alex Morgan', email: 'a@example.com', skills: ['JS'], open: false, shareEmailWithTeam: false },
+      { id: PRIYA, displayName: 'Priya Shah', email: 'p@example.com', skills: ['Python'], open: true, shareEmailWithTeam: false },
+    ],
+    teams: [{ id: 'team-1', name: 'T', creatorId: ALEX, memberIds: [ALEX] }],
+    invitations: [{ id: 'inv-2', teamId: 'team-1', teamName: 'T', fromId: ALEX, toId: PRIYA, status: 'pending', createdAt: T0, expiresAt: T0 + D.INVITE_TTL_MS }],
+  };
+  const s = D.migrate(v1);
+  assert.equal(s.version, 2);
+  assert.equal(D.liveChallenge(s).id, LIVE);
+  assert.equal(D.teamOf(s, ALEX).id, 'team-1');
+  assert.equal(D.pendingIncoming(s, PRIYA).id, 'inv-2');
+  assert.ok(D.isOpen(s, PRIYA) && !D.isOpen(s, ALEX));
+  assert.equal(D.migrate(s), s);
+  assert.equal(D.migrate({ version: 99 }), null);
 });

@@ -19,16 +19,17 @@ const fail = (code, message) => {
 
 export function createInitialState(demo) {
   return {
-    version: 1,
+    version: 2,
     notice: demo.notice,
-    challenge: demo.challenge,
+    // The sample challenge starts live so the demo can be explored at once.
+    challenges: [{ ...demo.challenge, date: '', status: 'live' }],
     participants: demo.participants.map((p) => ({
       id: p.id,
       displayName: p.displayName,
       email: p.email,
       avatar: p.avatar,
       skills: [...p.skills],
-      open: p.eventStatus === 'open_to_invitations',
+      openFor: p.eventStatus === 'open_to_invitations' ? demo.challenge.id : null,
       shareEmailWithTeam: false,
       fictional: true,
     })),
@@ -40,12 +41,39 @@ export function createInitialState(demo) {
   };
 }
 
+// Bring a state saved by an earlier version up to date, keeping its progress.
+export function migrate(saved) {
+  if (saved?.version === 2) return saved;
+  if (saved?.version !== 1) return null;
+  const { challenge, ...rest } = structuredClone(saved);
+  return {
+    ...rest,
+    version: 2,
+    challenges: [{ ...challenge, date: '', status: 'live' }],
+    participants: rest.participants.map(({ open, ...p }) => ({ ...p, openFor: open ? challenge.id : null })),
+    teams: rest.teams.map((t) => ({ ...t, challengeId: challenge.id })),
+    invitations: rest.invitations.map((i) => ({ ...i, challengeId: challenge.id })),
+  };
+}
+
 // ---------- queries ----------
+
+export const liveChallenge = (state) => state.challenges.find((c) => c.status === 'live') ?? null;
+
+const liveId = (state) => liveChallenge(state)?.id ?? null;
 
 export const findPerson = (state, id) => state.participants.find((p) => p.id === id) ?? null;
 
-export const teamOf = (state, personId) =>
-  state.teams.find((t) => t.memberIds.includes(personId)) ?? null;
+// Teams, invitations and availability are always looked up within the live challenge.
+export const teamOf = (state, personId) => {
+  const id = liveId(state);
+  return state.teams.find((t) => t.challengeId === id && t.memberIds.includes(personId)) ?? null;
+};
+
+export const isOpen = (state, personId) => {
+  const id = liveId(state);
+  return !!id && findPerson(state, personId)?.openFor === id;
+};
 
 // A creator alone in a draft is not yet committed; two or more members are.
 export const isCommitted = (state, personId) => {
@@ -54,12 +82,13 @@ export const isCommitted = (state, personId) => {
 };
 
 export const isDiscoverable = (state, personId) => {
-  const p = findPerson(state, personId);
-  return !!p && p.open && !isCommitted(state, personId);
+  return isOpen(state, personId) && !isCommitted(state, personId);
 };
 
-export const pendingIncoming = (state, personId) =>
-  state.invitations.find((i) => i.toId === personId && i.status === 'pending') ?? null;
+export const pendingIncoming = (state, personId) => {
+  const id = liveId(state);
+  return state.invitations.find((i) => i.challengeId === id && i.toId === personId && i.status === 'pending') ?? null;
+};
 
 const publicProfile = (p) => ({
   id: p.id,
@@ -154,7 +183,7 @@ export function invitationView(state, invitationId, viewerId) {
     id: inv.id,
     status: inv.status,
     expiresAt: inv.expiresAt,
-    challenge: state.challenge,
+    challenge: state.challenges.find((c) => c.id === inv.challengeId) ?? null,
     teamName: inv.teamName,
     members,
     skills: teamSkills(members),
@@ -192,6 +221,8 @@ const begin = (state, now) => {
   return s;
 };
 
+const NO_LIVE = 'No challenge is open right now.';
+
 const mustFind = (s, id) => findPerson(s, id) ?? fail('unknown_person', 'That participant does not exist.');
 
 function removeDraft(s, team, now) {
@@ -216,7 +247,7 @@ export function addParticipant(state, { email, displayName, avatar, skills }) {
     email: mail,
     avatar: avatar ?? { type: 'initials', value: initialsOf(name) },
     skills: tags,
-    open: false, // unavailable until the person chooses otherwise
+    openFor: null, // unavailable until the person chooses otherwise
     shareEmailWithTeam: false,
     fictional: false,
   });
@@ -235,9 +266,10 @@ export const initialsOf = (name) =>
 export function createTeam(state, creatorId, name, now) {
   const s = begin(state, now);
   const creator = mustFind(s, creatorId);
+  const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
   if (teamOf(s, creatorId)) fail('already_on_team', 'You already have a team for this event.');
   const teamName = String(name ?? '').trim().slice(0, 40) || `${creator.displayName}'s team`;
-  s.teams.push({ id: `team-${s.seq++}`, name: teamName, creatorId, memberIds: [creatorId] });
+  s.teams.push({ id: `team-${s.seq++}`, challengeId: challenge.id, name: teamName, creatorId, memberIds: [creatorId] });
   return s;
 }
 
@@ -259,6 +291,7 @@ export function invite(state, fromId, toId, now) {
   const team = teamOf(s, fromId);
   s.invitations.push({
     id: `inv-${s.seq++}`,
+    challengeId: team.challengeId,
     teamId: team.id,
     teamName: team.name,
     fromId,
@@ -306,7 +339,7 @@ export function accept(state, invitationId, recipientId, now, { abandonDraft: ab
   close(inv, 'accepted', now);
   // Everyone on a team of two or more is committed: out of discovery, no open invitations.
   for (const id of team.memberIds) {
-    findPerson(s, id).open = false;
+    findPerson(s, id).openFor = null;
     const other = pendingIncoming(s, id);
     if (other) close(other, 'closed', now);
   }
@@ -321,8 +354,9 @@ export function accept(state, invitationId, recipientId, now, { abandonDraft: ab
 export function setOpen(state, personId, open, now) {
   const s = begin(state, now);
   const p = mustFind(s, personId);
+  const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
   if (open && isCommitted(s, personId)) fail('already_committed', 'You are already committed to a team for this event.');
-  p.open = !!open;
+  p.openFor = open ? challenge.id : null;
   if (!open) {
     const inv = pendingIncoming(s, personId);
     if (inv) close(inv, 'closed', now);
@@ -335,5 +369,64 @@ export function setShareEmail(state, personId, share) {
   const p = mustFind(s, personId);
   if (share && !teamOf(s, personId)) fail('no_team', 'Join a team before sharing contact details.');
   p.shareEmailWithTeam = !!share;
+  return s;
+}
+
+// ---------- challenges (organizer) ----------
+
+const mustFindChallenge = (s, id) =>
+  s.challenges.find((c) => c.id === id) ?? fail('unknown_challenge', 'That challenge does not exist.');
+
+const isRealDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`));
+
+const READY = 'A challenge needs a title, description and date before it can be live.';
+const isReady = (c) => !!(c.title && c.preview && c.date);
+
+// Create a draft, or edit an existing challenge when `id` is given.
+export function saveChallenge(state, { id, title, preview, date }) {
+  const s = structuredClone(state);
+  const fields = {
+    title: String(title ?? '').trim(),
+    preview: String(preview ?? '').trim(),
+    date: String(date ?? '').trim(),
+  };
+  if (!fields.title || fields.title.length > 80) fail('bad_title', 'Enter a title of up to 80 characters.');
+  if (fields.preview.length > 600) fail('bad_preview', 'Keep the description under 600 characters.');
+  if (fields.date && !isRealDate(fields.date)) fail('bad_date', 'Enter a valid date.');
+  if (id) {
+    const c = mustFindChallenge(s, id);
+    if (c.status === 'live' && !isReady(fields)) fail('incomplete', READY);
+    Object.assign(c, fields);
+  } else {
+    s.challenges.push({ id: `ch-${s.seq++}`, ...fields, durationHours: 4, teamSize: TEAM_SIZE, status: 'draft' });
+  }
+  return s;
+}
+
+export function publishChallenge(state, id) {
+  const s = structuredClone(state);
+  const c = mustFindChallenge(s, id);
+  const live = liveChallenge(s);
+  if (live && live.id !== id) {
+    fail('another_live', `Take “${live.title}” offline first. One challenge is live at a time.`);
+  }
+  if (!isReady(c)) fail('incomplete', READY);
+  c.status = 'live';
+  return s;
+}
+
+// Its teams and invitations are kept and return if it goes live again.
+export function unpublishChallenge(state, id) {
+  const s = structuredClone(state);
+  mustFindChallenge(s, id).status = 'draft';
+  return s;
+}
+
+export function deleteChallenge(state, id) {
+  const s = structuredClone(state);
+  const c = mustFindChallenge(s, id);
+  if (c.status === 'live') fail('is_live', 'Take the challenge offline before deleting it.');
+  if (s.teams.some((t) => t.challengeId === id)) fail('has_teams', 'This challenge has teams, so it cannot be deleted.');
+  s.challenges = s.challenges.filter((x) => x.id !== id);
   return s;
 }
