@@ -1,0 +1,167 @@
+{
+  "notice": "All participants and this event are fictional. No prize is funded. No messages are sent. Emails use reserved example.com addresses.",
+  "challenge": {
+    "id": "demo-saturday",
+    "title": "Build a Better Community Help Desk",
+    "status": "illustrative_demo",
+    "durationHours": 4,
+    "teamSize": 4,
+    "illustrativePrizeUSD": 5000,
+    "dateLabel": "Illustrative Saturday — date to be announced",
+    "preview": "Help a fictional community center organize incoming requests and show what needs attention. Form a team with complementary skills. Full requirements and judging criteria would be released equally at the official start of a real event."
+  },
+  "participants": [
+    {
+      "id": "demo-1",
+      "displayName": "Alex Morgan",
+      "email": "participant1@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "AM"
+      },
+      "skills": [
+        "JavaScript",
+        "UI design"
+      ],
+      "eventStatus": "creating_team",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-2",
+      "displayName": "Priya Shah",
+      "email": "participant2@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "PS"
+      },
+      "skills": [
+        "Python",
+        "AI integration"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-3",
+      "displayName": "Jordan Lee",
+      "email": "participant3@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "JL"
+      },
+      "skills": [
+        "Testing",
+        "Accessibility"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-4",
+      "displayName": "Sam Rivera",
+      "email": "participant4@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "SR"
+      },
+      "skills": [
+        "APIs",
+        "Databases"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-5",
+      "displayName": "Taylor Brooks",
+      "email": "participant5@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "TB"
+      },
+      "skills": [
+        "COBOL",
+        "Mainframe"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-6",
+      "displayName": "Casey Chen",
+      "email": "participant6@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "CC"
+      },
+      "skills": [
+        "Java",
+        "Cloud"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-7",
+      "displayName": "Morgan Patel",
+      "email": "participant7@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "MP"
+      },
+      "skills": [
+        "Product thinking",
+        "Presentation"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-8",
+      "displayName": "Riley Jones",
+      "email": "participant8@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "RJ"
+      },
+      "skills": [
+        "C#",
+        ".NET"
+      ],
+      "eventStatus": "unavailable",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-9",
+      "displayName": "Jamie Kim",
+      "email": "participant9@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "JK"
+      },
+      "skills": [
+        "Python",
+        "Data analysis"
+      ],
+      "eventStatus": "open_to_invitations",
+      "shareEmailWithTeam": false
+    },
+    {
+      "id": "demo-10",
+      "displayName": "Avery Davis",
+      "email": "participant10@example.com",
+      "avatar": {
+        "type": "initials",
+        "value": "AD"
+      },
+      "skills": [
+        "UX design",
+        "CSS"
+      ],
+      "eventStatus": "unavailable",
+      "shareEmailWithTeam": false
+    }
+  ],
+  "teams": [],
+  "invitations": []
+}
