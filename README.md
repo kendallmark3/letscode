@@ -14,15 +14,16 @@ This is an intent package for your coding agent, not an implemented application.
 
 > Read INTENT-V1.md and PRODUCT-CONTEXT.md. Inspect the repository and its installed skills and rules. Build the smallest complete runnable version that satisfies V1. Choose the implementation within the stated boundaries. Use data/demo.json as fictional sample content, adapting its structure as needed. Make the experience attractive and easy to use, and let me demonstrate the complete invitation flow. Provide run instructions, meaningful verification of the team/privacy boundaries, and a clear account of what is simulated. Finish V1 before adding future commercial features.
 
-## Run the V1 demo
-Requires Node 18 or newer. There is nothing to install.
+## Run it
+Requires Node 20 or newer. There is nothing to install.
 
 ```
-npm start        # then open http://localhost:4747
-npm test         # team, invitation and privacy rule checks
+npm run demo     # fictional accounts and a sample competition; logins are shown at the top of the page
+npm start        # real mode: starts empty; set ORGANIZER_EMAIL and ORGANIZER_PASSWORD
+npm test         # rule and API checks
 ```
 
-Set `PORT` to use a different port (`PORT=8080 npm start`). See HANDOFF.md for what works and what is simulated.
+Both serve http://localhost:4747 (`PORT=8080 npm start` to change it). See HANDOFF.md for what works, what to know before real use, and the decisions made.
 
 ## Package contents
 | File | Purpose |

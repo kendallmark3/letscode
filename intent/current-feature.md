@@ -58,3 +58,15 @@ This is a demo role, not security. Real sign-in is not built until a server with
 
 ## Evidence
 As a visitor or participant there is no Admin tab and `#admin` shows an "organizers only" message. As Organizer the admin screen works. The screen says plainly that the role is simulated.
+
+---
+
+# Intent V2: real users (2026-10-10)
+
+`intent/intentv1.md` (titled "Progressive Intent V2") is Mark's authoritative intent for this step and applies in full. In brief:
+
+## Outcome
+Move Let's Code from a single-browser demonstration into a simple real-user experience: create an account, log in, view the open competition, create or join one team, complete the four-person team, join the competition. The system knows who each participant is and enforces the rules across users.
+
+## Success / Evidence
+The twelve demonstrations listed under "Success and Evidence" in `intent/intentv1.md`, shown with separate authenticated users and enforced by the authoritative application state. Existing rule coverage is kept and extended.

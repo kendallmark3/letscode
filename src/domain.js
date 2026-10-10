@@ -17,12 +17,15 @@ const fail = (code, message) => {
   throw new DomainError(code, message);
 };
 
+export function createEmptyState() {
+  return { version: 3, challenges: [], participants: [], accounts: [], teams: [], invitations: [], notifications: [], seq: 1 };
+}
+
+// Sample content for tests and the local demo: one live challenge and fictional participants.
 export function createInitialState(demo) {
   return {
-    version: 2,
-    notice: demo.notice,
-    // The sample challenge starts live so the demo can be explored at once.
-    challenges: [{ ...demo.challenge, date: '', status: 'live' }],
+    ...createEmptyState(),
+    challenges: [{ ...demo.challenge, date: '', status: 'live', enrollmentOpen: true }],
     participants: demo.participants.map((p) => ({
       id: p.id,
       displayName: p.displayName,
@@ -31,28 +34,7 @@ export function createInitialState(demo) {
       skills: [...p.skills],
       openFor: p.eventStatus === 'open_to_invitations' ? demo.challenge.id : null,
       shareEmailWithTeam: false,
-      fictional: true,
     })),
-    teams: [],
-    invitations: [],
-    seq: 1,
-    currentUserId: null,
-    clockOffsetMs: 0,
-  };
-}
-
-// Bring a state saved by an earlier version up to date, keeping its progress.
-export function migrate(saved) {
-  if (saved?.version === 2) return saved;
-  if (saved?.version !== 1) return null;
-  const { challenge, ...rest } = structuredClone(saved);
-  return {
-    ...rest,
-    version: 2,
-    challenges: [{ ...challenge, date: '', status: 'live' }],
-    participants: rest.participants.map(({ open, ...p }) => ({ ...p, openFor: open ? challenge.id : null })),
-    teams: rest.teams.map((t) => ({ ...t, challengeId: challenge.id })),
-    invitations: rest.invitations.map((i) => ({ ...i, challengeId: challenge.id })),
   };
 }
 
@@ -61,6 +43,12 @@ export function migrate(saved) {
 export const liveChallenge = (state) => state.challenges.find((c) => c.status === 'live') ?? null;
 
 const liveId = (state) => liveChallenge(state)?.id ?? null;
+
+// The organizer's cutoff: once closed, no team can form, grow or enroll.
+export const enrollmentOpen = (state) => !!liveChallenge(state)?.enrollmentOpen;
+
+export const teamStatus = (team) =>
+  team.enrolledAt ? 'ENROLLED' : team.memberIds.length === TEAM_SIZE ? 'READY' : 'FORMING';
 
 export const findPerson = (state, id) => state.participants.find((p) => p.id === id) ?? null;
 
@@ -97,10 +85,24 @@ const publicProfile = (p) => ({
   skills: [...p.skills],
 });
 
+const publicChallenge = (c) =>
+  c && {
+    id: c.id,
+    title: c.title,
+    preview: c.preview,
+    date: c.date,
+    dateLabel: c.dateLabel,
+    durationHours: c.durationHours,
+    teamSize: c.teamSize,
+    illustrativePrizeUSD: c.illustrativePrizeUSD,
+    enrollmentOpen: !!c.enrollmentOpen,
+  };
+
 // Why `fromId` cannot invite `toId` right now, as [code, message], or null.
 export function inviteBlock(state, fromId, toId) {
   const team = teamOf(state, fromId);
   if (!team) return ['no_team', 'Create a team before inviting anyone.'];
+  if (!enrollmentOpen(state)) return ['enrollment_closed', CLOSED];
   if (fromId === toId) return ['self', 'You are already on your own team.'];
   if (team.memberIds.includes(toId)) return ['already_member', 'Already on your team.'];
   if (team.memberIds.length >= TEAM_SIZE) return ['team_full', 'Your team is full.'];
@@ -158,6 +160,9 @@ export function teamView(state, teamId, viewerId) {
     seats: Array.from({ length: TEAM_SIZE }, (_, i) => members[i] ?? null),
     openSeats: TEAM_SIZE - members.length,
     isFull: members.length === TEAM_SIZE,
+    status: teamStatus(team),
+    creatorName: findPerson(state, team.creatorId).displayName,
+    canEnroll: viewerId === team.creatorId && teamStatus(team) === 'READY' && enrollmentOpen(state),
     skills: teamSkills(members),
     invitations: isMember
       ? state.invitations
@@ -165,7 +170,7 @@ export function teamView(state, teamId, viewerId) {
           .map((i) => ({
             id: i.id,
             status: i.status,
-            fromId: i.fromId,
+            mine: i.fromId === viewerId,
             expiresAt: i.expiresAt,
             to: publicProfile(findPerson(state, i.toId)),
           }))
@@ -183,7 +188,7 @@ export function invitationView(state, invitationId, viewerId) {
     id: inv.id,
     status: inv.status,
     expiresAt: inv.expiresAt,
-    challenge: state.challenges.find((c) => c.id === inv.challengeId) ?? null,
+    challenge: publicChallenge(state.challenges.find((c) => c.id === inv.challengeId)),
     teamName: inv.teamName,
     members,
     skills: teamSkills(members),
@@ -222,6 +227,7 @@ const begin = (state, now) => {
 };
 
 const NO_LIVE = 'No challenge is open right now.';
+const CLOSED = 'Enrollment for this competition is closed.';
 
 const mustFind = (s, id) => findPerson(s, id) ?? fail('unknown_person', 'That participant does not exist.');
 
@@ -249,9 +255,7 @@ export function addParticipant(state, { email, displayName, avatar, skills }) {
     skills: tags,
     openFor: null, // unavailable until the person chooses otherwise
     shareEmailWithTeam: false,
-    fictional: false,
   });
-  s.currentUserId = id;
   return s;
 }
 
@@ -267,6 +271,7 @@ export function createTeam(state, creatorId, name, now) {
   const s = begin(state, now);
   const creator = mustFind(s, creatorId);
   const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
+  if (!challenge.enrollmentOpen) fail('enrollment_closed', CLOSED);
   if (teamOf(s, creatorId)) fail('already_on_team', 'You already have a team for this event.');
   const teamName = String(name ?? '').trim().slice(0, 40) || `${creator.displayName}'s team`;
   s.teams.push({ id: `team-${s.seq++}`, challengeId: challenge.id, name: teamName, creatorId, memberIds: [creatorId] });
@@ -325,6 +330,7 @@ export function decline(state, invitationId, recipientId, now) {
 export function accept(state, invitationId, recipientId, now, { abandonDraft: abandon = false } = {}) {
   const s = begin(state, now);
   const inv = pendingFor(s, invitationId, recipientId, 'toId');
+  if (!enrollmentOpen(s)) fail('enrollment_closed', CLOSED);
   const team = s.teams.find((t) => t.id === inv.teamId);
   if (!team || team.memberIds.length >= TEAM_SIZE) {
     fail('invitation_unavailable', 'This invitation is no longer available.');
@@ -355,6 +361,7 @@ export function setOpen(state, personId, open, now) {
   const s = begin(state, now);
   const p = mustFind(s, personId);
   const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
+  if (open && !challenge.enrollmentOpen) fail('enrollment_closed', CLOSED);
   if (open && isCommitted(s, personId)) fail('already_committed', 'You are already committed to a team for this event.');
   p.openFor = open ? challenge.id : null;
   if (!open) {
@@ -398,7 +405,7 @@ export function saveChallenge(state, { id, title, preview, date }) {
     if (c.status === 'live' && !isReady(fields)) fail('incomplete', READY);
     Object.assign(c, fields);
   } else {
-    s.challenges.push({ id: `ch-${s.seq++}`, ...fields, durationHours: 4, teamSize: TEAM_SIZE, status: 'draft' });
+    s.challenges.push({ id: `ch-${s.seq++}`, ...fields, durationHours: 4, teamSize: TEAM_SIZE, status: 'draft', enrollmentOpen: false });
   }
   return s;
 }
@@ -412,6 +419,7 @@ export function publishChallenge(state, id) {
   }
   if (!isReady(c)) fail('incomplete', READY);
   c.status = 'live';
+  c.enrollmentOpen = true;
   return s;
 }
 
@@ -429,4 +437,92 @@ export function deleteChallenge(state, id) {
   if (s.teams.some((t) => t.challengeId === id)) fail('has_teams', 'This challenge has teams, so it cannot be deleted.');
   s.challenges = s.challenges.filter((x) => x.id !== id);
   return s;
+}
+
+export function setEnrollment(state, id, open) {
+  const s = structuredClone(state);
+  const c = mustFindChallenge(s, id);
+  if (c.status !== 'live') fail('not_live', 'Only the live challenge has an enrollment window.');
+  c.enrollmentOpen = !!open;
+  return s;
+}
+
+// ---------- enrollment ----------
+
+// The creator enters a complete team into the competition and the organizer is told.
+export function enrollTeam(state, personId, now) {
+  const s = begin(state, now);
+  const team = teamOf(s, personId) ?? fail('no_team', 'You are not on a team for this competition.');
+  if (team.creatorId !== personId) fail('not_creator', 'Only the person who started the team can join the competition.');
+  if (team.enrolledAt) fail('already_enrolled', 'Your team has already joined the competition.');
+  const members = new Set(team.memberIds);
+  const valid = [...members].every(
+    (id) => findPerson(s, id) && s.teams.filter((t) => t.challengeId === team.challengeId && t.memberIds.includes(id)).length === 1,
+  );
+  if (members.size !== TEAM_SIZE || team.memberIds.length !== TEAM_SIZE || !valid) {
+    fail('not_ready', `A team needs exactly ${TEAM_SIZE} members to join the competition.`);
+  }
+  if (!enrollmentOpen(s)) fail('enrollment_closed', CLOSED);
+  team.enrolledAt = now;
+  s.notifications.push({ id: `note-${s.seq++}`, kind: 'team_enrolled', challengeId: team.challengeId, teamId: team.id, at: now, seen: false });
+  return s;
+}
+
+export function markNotificationsSeen(state) {
+  const s = structuredClone(state);
+  for (const n of s.notifications) n.seen = true;
+  return s;
+}
+
+// ---------- what each viewer may see ----------
+
+// The organizer sees challenges and enrolled teams by name. No emails, no forming teams.
+function adminOverview(state) {
+  const teamName = (id) => state.teams.find((t) => t.id === id)?.name ?? 'A team';
+  return {
+    challenges: state.challenges.map((c) => {
+      const teams = state.teams.filter((t) => t.challengeId === c.id);
+      return {
+        ...publicChallenge(c),
+        status: c.status,
+        teamCount: teams.length,
+        enrolled: teams
+          .filter((t) => t.enrolledAt)
+          .map((t) => ({ id: t.id, name: t.name, enrolledAt: t.enrolledAt, members: t.memberIds.map((id) => findPerson(state, id).displayName) })),
+      };
+    }),
+    notifications: state.notifications
+      .filter((n) => !n.seen)
+      .map((n) => ({ id: n.id, at: n.at, teamName: teamName(n.teamId), challengeTitle: state.challenges.find((c) => c.id === n.challengeId)?.title ?? '' })),
+  };
+}
+
+// Everything the interface is given for one viewer. `viewer` comes from the
+// server's session, never from the request: null, { organizer: true } or { participantId }.
+export function viewFor(state, viewer) {
+  const live = liveChallenge(state);
+  const base = { role: 'visitor', challenge: publicChallenge(live) };
+  if (viewer?.organizer) return { ...base, role: 'organizer', admin: adminOverview(state) };
+  const p = viewer?.participantId ? findPerson(state, viewer.participantId) : null;
+  if (!p) return base;
+  const team = teamOf(state, p.id);
+  const incoming = pendingIncoming(state, p.id);
+  return {
+    ...base,
+    role: 'participant',
+    me: {
+      ...publicProfile(p),
+      email: p.email,
+      shareEmailWithTeam: p.shareEmailWithTeam,
+      isOpen: isOpen(state, p.id),
+      isCommitted: isCommitted(state, p.id),
+    },
+    people: discover(state, p.id),
+    team: team && teamView(state, team.id, p.id),
+    invitation: incoming && invitationView(state, incoming.id, p.id),
+    pastInvitations: state.invitations
+      .filter((i) => i.challengeId === live?.id && i.toId === p.id && i.status !== 'pending')
+      .map((i) => ({ teamName: i.teamName, status: i.status }))
+      .reverse(),
+  };
 }

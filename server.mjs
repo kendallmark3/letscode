@@ -1,33 +1,35 @@
-// Static file server for the local demo. No dependencies.
+// Entry point. No dependencies.
+//   npm start      real mode: empty data file, accounts are created by registering
+//   npm run demo   fictional accounts and a sample challenge, in a separate data file
+import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize, sep } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createApp } from './src/server-app.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const port = Number(process.env.PORT) || 4747;
-const types = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-};
+const env = process.env;
+const demo = env.DEMO === '1';
+const port = Number(env.PORT) || 4747;
+const host = env.HOST || '127.0.0.1';
 
-createServer(async (req, res) => {
-  const path = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-  // Only src/ and data/ are served.
-  const rel = path === '/' ? 'src/index.html' : path.startsWith('/data/') ? path.slice(1) : join('src', path);
-  const file = normalize(join(root, rel));
-  const allowed = [join(root, 'src') + sep, join(root, 'data') + sep];
-  try {
-    if (!allowed.some((dir) => file.startsWith(dir))) throw new Error('outside root');
-    const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
-    res.end(body);
-  } catch {
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Not found');
-  }
-}).listen(port, '127.0.0.1', () => {
-  console.log(`Let's Code demo running at http://localhost:${port}`);
+const organizerEmail = env.ORGANIZER_EMAIL || 'organizer@example.com';
+// Without a configured password, a fresh one is made for this run and shown once below.
+const organizerPassword = env.ORGANIZER_PASSWORD || (demo ? 'organizer-demo' : randomBytes(12).toString('base64url'));
+
+const app = createApp({
+  dataFile: env.DATA_FILE || join(root, 'var', demo ? 'demo-state.json' : 'state.json'),
+  publicDir: join(root, 'public'),
+  organizerEmail,
+  organizerPassword,
+  seed: demo ? { demo: JSON.parse(readFileSync(join(root, 'data', 'demo.json'), 'utf8')), password: 'letscode-demo' } : null,
+  secureCookies: env.SECURE_COOKIES === '1',
+});
+
+createServer(app.handler).listen(port, host, () => {
+  console.log(`Let's Code running at http://localhost:${port}${demo ? '  (demo data)' : ''}`);
+  console.log(`Organizer login: ${organizerEmail}`);
+  if (!env.ORGANIZER_PASSWORD) console.log(`Organizer password${demo ? ' (demo)' : ' for this run'}: ${organizerPassword}`);
+  if (demo) console.log('Participant logins: participant1@example.com … participant10@example.com, password letscode-demo');
 });
