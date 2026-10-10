@@ -39,3 +39,22 @@ One challenge is live at a time. A challenge needs a title, description and date
 
 ## Evidence
 Mark adds a challenge with a date, makes it live, and sees it on the Challenge page; he creates a team from it. With nothing live, participants see a clear "no challenge open" state and cannot form teams. A second challenge cannot go live while one is.
+
+---
+
+# Intent Delta 2: organizer access (2026-10-10)
+
+## Observation
+Anyone can open the admin screen. Mark asked whether a login screen is needed.
+
+## Keep
+"View as" stays a demo identity switch, visibly distinct from sign-in. No accounts.
+
+## Change
+"View as" gains an Organizer role. Only the Organizer sees and can open the admin screen. The Organizer is not a participant: no profile, team or inbox.
+
+## New Boundary
+This is a demo role, not security. Real sign-in is not built until a server with shared data exists, and arrives as its own intent together with it.
+
+## Evidence
+As a visitor or participant there is no Admin tab and `#admin` shows an "organizers only" message. As Organizer the admin screen works. The screen says plainly that the role is simulated.

@@ -14,7 +14,7 @@ npm test      # 22 rule checks
 - **People**: search by skill or tap a skill filter; a carousel with Previous/Next buttons, keyboard scrolling and touch. Only name, picture, skills and availability are shown.
 - **My team**: four seats, the team's combined skills, invitations sent with withdraw, and a choice to share your own email with teammates.
 - **Inbox**: at most one invitation at a time, showing the challenge, team, members, skills and remaining seats; accept, decline, or pause.
-- **Admin**: add challenges, give each a title, description and date, make one live, take it offline, delete an unused draft. Participants see only the live challenge.
+- **Admin** (choose "Organizer (demo role)" under "View as"): add challenges, give each a title, description and date, make one live, take it offline, delete an unused draft. Participants see only the live challenge.
 - **Demo controls** (top bar): "View as" switches between participants so you can play both sides, "Skip 48 hours" advances the demo clock so invitations expire, "Reset demo" starts over. Progress survives a refresh.
 
 ## A five-minute walkthrough
@@ -42,7 +42,7 @@ The same flow was also driven end to end in a headless browser at desktop and ph
 
 ## What is simulated
 - **No accounts or sign-in.** "View as" is a demo switch. Anyone using this browser can act as anyone.
-- **No organizer accounts.** Challenges are stored in this browser like everything else.
+- **No organizer accounts.** "Organizer (demo role)" in "View as" opens the Admin screen. It is a role switch, not security: anyone using this browser can choose it, and the screen says so. Challenges are stored in this browser like everything else. Real sign-in needs a server with shared data and will arrive as its own intent together with it.
 - **No server-side data.** Everything, including any email you type, is stored in this browser's local storage. It is not private storage and is not shared between devices or people. Do not open this to public registration.
 - **No messages.** An "invitation" is a record that appears in the other participant's inbox in the same browser. Nothing is emailed.
 - **Time.** Invitations last 48 hours on the demo clock; they expire in real time or when you press "Skip 48 hours".

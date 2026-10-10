@@ -1,6 +1,8 @@
 import * as D from './domain.js';
 
 const STORAGE_KEY = 'lets-code-demo-v1';
+// Not a participant: a demo role in the identity switch that unlocks the admin screen.
+const ORGANIZER = 'organizer';
 const VIEWS = ['challenge', 'people', 'team', 'inbox', 'admin'];
 const SKILL_IDEAS = ['JavaScript', 'Python', 'Java', 'C#', 'Testing', 'UI design', 'APIs', 'Databases', 'Cloud', 'AI integration', 'Product thinking', 'Presentation'];
 
@@ -59,6 +61,7 @@ const h = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 const me = () => (state.currentUserId ? D.findPerson(state, state.currentUserId) : null);
+const isOrganizer = () => state.currentUserId === ORGANIZER;
 
 const hue = (id) => ([...id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 997, 7) * 137) % 360;
 
@@ -112,8 +115,9 @@ function demoBar() {
     <div class="demo-controls">
       <label for="identity">View as <span class="hint">(demo switch, not sign-in)</span></label>
       <select id="identity" data-fk="identity">
-        <option value=""${user ? '' : ' selected'}>Visitor (no profile)</option>
+        <option value=""${state.currentUserId ? '' : ' selected'}>Visitor (no profile)</option>
         ${options}
+        <option value="${ORGANIZER}"${isOrganizer() ? ' selected' : ''}>Organizer (demo role)</option>
       </select>
       <button class="btn small ghost" data-action="skip-time" data-fk="skip-time" title="Advance the demo clock to show invitations expiring">Skip 48 hours${skipped ? ` <span class="hint">(+${skipped}h)</span>` : ''}</button>
       <button class="btn small ghost" data-action="reset" data-fk="reset">Reset demo</button>
@@ -125,7 +129,7 @@ function header() {
   const user = me();
   const inboxCount = user && D.pendingIncoming(state, user.id) ? 1 : 0;
   const labels = { challenge: 'Challenge', people: 'People', team: 'My team', inbox: 'Inbox', admin: 'Admin' };
-  const tabs = VIEWS.map(
+  const tabs = VIEWS.filter((v) => v !== 'admin' || isOrganizer()).map(
     (v) => `<a href="#${v}" data-fk="tab-${v}"${ui.view === v ? ' aria-current="page"' : ''}>${labels[v]}${
       v === 'inbox' && inboxCount ? `<span class="badge" aria-label="1 invitation">1</span>` : ''
     }</a>`,
@@ -148,6 +152,16 @@ function statusLine(user) {
 
 function identityStrip() {
   const user = me();
+  if (isOrganizer()) {
+    return `
+    <section class="me" aria-label="Your role">
+      <span class="avatar" style="--hue:20" aria-hidden="true">★</span>
+      <div>
+        <p class="me-name">Organizer <span class="tag warn">demo role</span></p>
+        <p class="me-status">Manages challenges. Not a sign-in: anyone using this browser can choose this role.</p>
+      </div>
+    </section>`;
+  }
   if (!user) return '';
   return `
   <section class="me" aria-label="Your profile">
@@ -453,7 +467,11 @@ function noChallenge(title) {
   <div class="empty">
     <h3>Nothing to join yet</h3>
     <p>Teams form around a live challenge. When an organizer makes one live, it appears here.</p>
-    <a class="btn ghost" href="#admin">Organizers: manage challenges</a>
+    ${
+      isOrganizer()
+        ? `<a class="btn primary" href="#admin">Manage challenges</a>`
+        : `<p class="hint">Organizing? In this demo, choose “Organizer” under “View as”.</p>`
+    }
   </div>`;
 }
 
@@ -579,12 +597,21 @@ function challengeRow(c) {
 }
 
 function adminView() {
+  if (!isOrganizer()) {
+    return `
+    <h1 tabindex="-1">Organizers only</h1>
+    <div class="empty">
+      <h3>This screen is for the organizer</h3>
+      <p>Challenges are managed by the organizer. In this demo there is no sign-in: choose “Organizer (demo role)” under “View as” to open it.</p>
+      <a class="btn ghost" href="#challenge">Back to the challenge</a>
+    </div>`;
+  }
   const live = D.liveChallenge(state);
   const editing = ui.editing && ui.editing !== 'new' ? state.challenges.find((c) => c.id === ui.editing) : null;
   return `
   <h1 tabindex="-1">Challenges</h1>
   <p class="lede">Add challenges, give each a date, and make one live. Participants see only the live challenge.</p>
-  <p class="notice small">${live ? `<strong>${h(live.title)}</strong> is live.` : '<strong>Nothing is live.</strong> Participants cannot form teams.'} One challenge is live at a time. In this demo, challenges are stored in this browser only.</p>
+  <p class="notice small">${live ? `<strong>${h(live.title)}</strong> is live.` : '<strong>Nothing is live.</strong> Participants cannot form teams.'} One challenge is live at a time. In this demo, challenges are stored in this browser only, and the organizer role is simulated rather than protected by sign-in.</p>
   ${
     ui.editing
       ? challengeForm(editing)
@@ -763,8 +790,10 @@ app.addEventListener('change', (e) => {
     ui.profileOpen = false;
     save();
     const p = me();
-    toast(p ? `Now viewing as ${p.displayName}.` : 'Now viewing as a visitor.');
-    render();
+    toast(p ? `Now viewing as ${p.displayName}.` : isOrganizer() ? 'Now viewing as the organizer (demo role).' : 'Now viewing as a visitor.');
+    if (isOrganizer()) go('admin');
+    else if (ui.view === 'admin') go('challenge');
+    else render();
   } else if (el.dataset.action === 'share-email') {
     actions['share-email'](el);
   } else if (el.id === 'pf-photo') {

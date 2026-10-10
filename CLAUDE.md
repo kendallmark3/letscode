@@ -35,7 +35,7 @@ Things that span files and are easy to break:
 - **`inviteBlock` is the single source for "why can't I invite this person"**, used both to refuse the action in `invite` and to label cards in the People view. Its messages must not reveal another team's identity.
 - **The demo clock**: `app.js` computes `now()` as real time plus `state.clockOffsetMs`; "Skip 48 hours" advances the offset so expiry can be demonstrated. `render()` calls `sweep()` so expired invitations are reflected on any redraw.
 - **Focus survives re-render** through `data-fk` keys: `render()` refocuses the element with the same key, or the view's `h1`. Give new interactive controls a stable `data-fk`. The skill search updates only `#results` (`renderResults`) so typing does not lose focus.
-- "View as" (`state.currentUserId`) is a demo identity switch and must stay visibly distinct from authentication.
+- "View as" (`state.currentUserId`) is a demo identity switch and must stay visibly distinct from authentication. The value `'organizer'` is a role, not a participant: `me()` is null for it, so participant views treat it as having no profile, and only it sees the Admin tab and `#admin`. That gate is presentation only (`isOrganizer()` in `app.js`); `domain.js` has no notion of who is acting.
 
 ## Tests
 
