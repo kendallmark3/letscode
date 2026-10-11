@@ -1,7 +1,7 @@
-# Let’s Code — approved product context
+# Let’s Go! — approved product context
 
 ## Purpose and identity
-Let’s Code helps programmers arrive alone and leave with a team ready for a funded challenge. It supports Mark Kendall’s Intent Driven Saturdays and Proof Before Resume initiative.
+Let’s Go! helps programmers arrive alone and leave with a team ready for a funded challenge. It supports Mark Kendall’s Intent Driven Saturdays and Proof Before Resume initiative.
 
 Working product line: **Find your team. Build your proof.**
 
@@ -9,7 +9,7 @@ Intent Driven Saturdays slogan: **Build Saturday. Win Money. Bring the Learning 
 
 Proof Before Resume positioning: **Stop screening claims. Start evaluating evidence.**
 
-Let’s Code is a working product name. No domain ownership or name availability has been established. Public-facing copy should describe its own purpose and experience; do not include competitor comparisons or an inspiration attribution.
+Let’s Go! is a working product name (it was Let’s Code until 2026-10-11). No domain ownership or name availability has been established. Public-facing copy should describe its own purpose and experience; do not include competitor comparisons or an inspiration attribution.
 
 ## Experience principles
 Give people an understandable opportunity immediately. Ask for very little. Skills and pictures make people discoverable; a four-seat carousel makes the emerging team visible. Invitation acceptance creates the team. Participants arrange their work externally using contact details they choose to share. Quiet participation, useful search, and a clear commitment matter more than social features.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Let's Code: programmers register, form a four-person team for the one live event through invitations that must be accepted, and register the completed team. An organizer manages events and closes them. The governing idea is **invite = tentative, accept = commitment, register = locked**.
+Let's Go! (named Let's Code until `intent/intentv3a.md`; the repository, package and data keep the old name): programmers register, form a four-person team for the one live event through invitations that must be accepted, and register the completed team. An organizer manages events and closes them. The governing idea is **invite = tentative, accept = commitment, register = locked**.
 
 Intent history, oldest first: INTENT-V1.md (single-browser demo; its **Boundaries** still govern team, invitation and privacy rules), the two deltas in `intent/current-feature.md` (organizer-managed challenges), `intent/intentv1.md` (real accounts and shared state), and `intent/intentv2.md` (commitment rules; the current authority, and it wins where it differs from earlier ones). Both of those files are titled "Progressive Intent V2". PRODUCT-CONTEXT.md is positioning and later-scope context, not requirements. HANDOFF.md records what works, the known gaps, and the choices made where an intent left room.
 

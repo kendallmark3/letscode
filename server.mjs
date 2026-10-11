@@ -28,7 +28,7 @@ const app = createApp({
 });
 
 createServer(app.handler).listen(port, host, () => {
-  console.log(`Let's Code running at http://localhost:${port}${demo ? '  (demo data)' : ''}`);
+  console.log(`Let's Go! running at http://localhost:${port}${demo ? '  (demo data)' : ''}`);
   console.log(`Organizer login: ${organizerEmail}`);
   if (!env.ORGANIZER_PASSWORD) console.log(`Organizer password${demo ? ' (demo)' : ' for this run'}: ${organizerPassword}`);
   if (demo) console.log('Participant logins: participant1@example.com … participant10@example.com, password letscode-demo');

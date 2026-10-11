@@ -1,10 +1,16 @@
-# Let's Code — handoff
+# Let's Go! — handoff
 
 Current intent: `intent/intentv2.md` ("Real Users, Persistent Teams & Competition Rules"). It builds on the real-accounts step in `intent/intentv1.md`.
 
 The rule the whole experience is built to make obvious:
 
 **Invite = tentative · Accept = commitment · Register team = locked**
+
+## Name and front page (intent/intentv3a.md)
+- The product is called **Let's Go!** on every screen, in the browser tab, and in the current documents. The repository, package name and data files keep the old name, and earlier intent files are left as written.
+- The front page opens with **Proof Before Resume**: no résumé needed, build with a team, earn recognition. The open event follows directly below.
+- The team picture is an original illustration drawn in the page itself (four figures with different skills around a shared screen, linked to an AI spark, with a "proof" badge). It uses the page's own colours, so it follows light and dark, and carries a text description for screen readers. No photo, no real person, no outside image service.
+- Recognition is described, not built: there is no winners page, badge or ranking yet. The page promises no jobs or earnings.
 
 ## Run it
 Requires Node 20 or newer. Nothing to install.

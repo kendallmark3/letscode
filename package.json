@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "Let's Code: form a four-person team for a competition.",
+  "description": "Let's Go! Proof Before Resume: form a four-person team for a competition.",
   "scripts": {
     "start": "node server.mjs",
     "demo": "DEMO=1 node server.mjs",

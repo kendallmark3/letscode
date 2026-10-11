@@ -1,4 +1,4 @@
-# Let’s Code — first build package
+# Let’s Go! — first build package
 
 **Find your team. Build your proof.**
 

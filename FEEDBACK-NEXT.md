@@ -1,4 +1,4 @@
-# Let’s Code — next progressive correction
+# Let’s Go! — next progressive correction
 
 Copy this short section after inspecting the running app. Leave implementation choices to the coding agent unless they are true requirements.
 
