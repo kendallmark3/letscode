@@ -2,96 +2,16 @@
 // These are the "Success and Evidence" demonstrations of intent/intentv1.md.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createApp } from '../src/server-app.js';
+import { readFileSync } from 'node:fs';
+import { harness, refused, ORG, PW } from './support.mjs';
 
-const publicDir = fileURLToPath(new URL('../public', import.meta.url));
-const ORG = { email: 'organizer@example.com', password: 'organizer-test-pw' };
-const PW = 'correct-horse-9';
+const h = harness();
+const { user, people, idOf, fill, organizer } = h;
+const join4 = h.join;
 
-let dir, server, base, logs, dataFile;
+before(() => h.start());
+after(() => h.cleanup());
 
-function start() {
-  logs = [];
-  const app = createApp({ dataFile, publicDir, organizerEmail: ORG.email, organizerPassword: ORG.password, log: (m) => logs.push(String(m)) });
-  server = createServer(app.handler);
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
-    base = `http://127.0.0.1:${server.address().port}`;
-    resolve();
-  }));
-}
-const stop = () => new Promise((resolve) => server.close(resolve));
-
-before(async () => {
-  dir = mkdtempSync(join(tmpdir(), 'letscode-'));
-  dataFile = join(dir, 'state.json');
-  await start();
-});
-after(async () => {
-  await stop();
-  rmSync(dir, { recursive: true, force: true });
-});
-
-// One browser: keeps its own session cookie.
-function user() {
-  let cookie = '';
-  const call = async (path, body, headers = {}) => {
-    const res = await fetch(base + path, body === undefined
-      ? { headers: { cookie } }
-      : { method: 'POST', headers: { 'Content-Type': 'application/json', cookie, ...headers }, body: JSON.stringify(body) });
-    const set = res.headers.get('set-cookie');
-    if (set) cookie = set.split(';')[0];
-    const json = await res.json();
-    return { status: res.status, view: json.view, error: json.error, setCookie: set };
-  };
-  const u = {
-    call,
-    view: async () => (await call('/api/view')).view,
-    act: (type, args = {}) => call('/api/action', { type, ...args }),
-    // Expect success and return the new view.
-    ok: async (type, args) => {
-      const r = await u.act(type, args);
-      assert.equal(r.status, 200, `${type}: ${r.error?.message}`);
-      return r.view;
-    },
-    register: (name, skills = ['Testing']) =>
-      call('/api/register', { email: `${name.toLowerCase()}@example.com`, password: PW, displayName: name, skills }),
-    login: (email, password = PW) => call('/api/login', { email, password }),
-    logout: () => call('/api/logout', {}),
-  };
-  return u;
-}
-
-const refused = (r, status, code) => {
-  assert.equal(r.status, status, JSON.stringify(r.error));
-  assert.equal(r.error.code, code);
-};
-
-const people = {};
-async function join4(names) {
-  for (const n of names) {
-    people[n] = user();
-    const r = await people[n].register(n);
-    assert.equal(r.status, 200, r.error?.message);
-  }
-}
-const idOf = async (n) => (await people[n].view()).me.id;
-
-// Creator invites each person; each opts in and accepts.
-async function fill(creator, others) {
-  for (const n of others) {
-    await people[n].ok('setOpen', { open: true });
-    await people[creator].ok('invite', { toId: await idOf(n) });
-    const inv = (await people[n].view()).invitation;
-    await people[n].ok('accept', { id: inv.id });
-  }
-}
-
-const organizer = user();
 let firstChallenge;
 
 test('the organizer signs in and opens a competition; a visitor can see it without logging in', async () => {
@@ -113,7 +33,7 @@ test('the organizer signs in and opens a competition; a visitor can see it witho
 
 test('nothing can be done without an account', async () => {
   const anon = user();
-  for (const type of ['createTeam', 'setOpen', 'invite', 'accept', 'enroll', 'abandonDraft']) {
+  for (const type of ['createTeam', 'setOpen', 'invite', 'accept', 'enroll', 'abandonTeam', 'leaveTeam']) {
     refused(await anon.act(type, { id: 'x', toId: 'x', open: true }), 401, 'participants_only');
   }
   refused(await anon.act('saveChallenge', { title: 'Sneaky' }), 401, 'organizer_only');
@@ -141,7 +61,7 @@ test('a participant registers, logs in again, and opts in to the competition', a
 });
 
 test('passwords are stored hashed and never returned', async () => {
-  const file = readFileSync(dataFile, 'utf8');
+  const file = readFileSync(h.dataFile, 'utf8');
   assert.ok(!file.includes(PW));
   const acct = JSON.parse(file).accounts[0];
   assert.deepEqual(Object.keys(acct).sort(), ['email', 'hash', 'participantId', 'salt']);
@@ -178,7 +98,7 @@ test('someone committed to a team cannot create or join another in the same comp
   refused(await people.Ben.act('createTeam', { name: 'Second' }), 409, 'already_on_team');
   refused(await people.Ben.act('setOpen', { open: true }), 409, 'already_committed');
   refused(await eve.act('invite', { toId: await idOf('Ben') }), 409, 'not_discoverable');
-  const state = JSON.parse(readFileSync(dataFile, 'utf8'));
+  const state = JSON.parse(readFileSync(h.dataFile, 'utf8'));
   const benId = await idOf('Ben');
   assert.equal(state.teams.filter((t) => t.memberIds.includes(benId)).length, 1);
 });
@@ -193,7 +113,7 @@ test('the server decides who is acting; another user cannot act on your invitati
     refused(await people.Ada.act(type, { id: inv.id, participantId: await idOf('Flo'), recipientId: await idOf('Flo') }), 409, 'not_yours');
   }
   // Only the creator may enroll, and a participant cannot use organizer actions.
-  refused(await people.Ben.act('enroll'), 409, 'not_creator');
+  refused(await people.Ben.act('enroll'), 409, 'not_leader');
   refused(await people.Ada.act('setEnrollment', { id: firstChallenge, open: false }), 403, 'organizer_only');
   refused(await people.Ada.act('publish', { id: firstChallenge }), 403, 'organizer_only');
   refused(await organizer.act('createTeam', { name: 'Org team' }), 403, 'participants_only');
@@ -233,7 +153,7 @@ test('a READY team joins the competition, is ENROLLED, and the organizer is noti
   assert.equal(admin.notifications.length, 1);
   assert.equal(admin.notifications[0].teamName, 'Team Ada');
   assert.deepEqual(admin.challenges[0].enrolled[0].members.sort(), ['Ada', 'Ben', 'Cy', 'Di']);
-  assert.ok(logs.some((l) => l.includes('[notify] Team "Team Ada" enrolled in "First Saturday"')));
+  assert.ok(h.logs.some((l) => l.includes('[notify] Team "Team Ada" enrolled in "First Saturday"')));
   assert.equal((await organizer.ok('markSeen')).admin.notifications.length, 0);
 });
 
@@ -271,8 +191,8 @@ test('the next competition starts clean and the same people can take part again'
 });
 
 test('state is shared and durable: it survives a restart, and sessions do not', async () => {
-  await stop();
-  await start();
+  await h.stop();
+  await h.start();
   assert.equal((await people.Ada.view()).role, 'visitor');
   const again = user();
   const v = (await again.login('ada@example.com')).view;
@@ -286,8 +206,8 @@ test('repeated wrong passwords are slowed down', async () => {
 });
 
 test('only the public folder is served', async () => {
-  for (const path of ['/', '/app.js', '/styles.css']) assert.equal((await fetch(base + path)).status, 200);
+  for (const path of ['/', '/app.js', '/styles.css']) assert.equal((await fetch(h.base + path)).status, 200);
   for (const path of ['/domain.js', '/data/demo.json', '/../package.json', '/%2e%2e/var/state.json', '/server.mjs']) {
-    assert.equal((await fetch(base + path)).status, 404, path);
+    assert.equal((await fetch(h.base + path)).status, 404, path);
   }
 });

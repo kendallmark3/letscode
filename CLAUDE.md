@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Let's Code: programmers register, form a four-person team for the one live competition through invitations that must be accepted, and enroll the completed team. An organizer manages competitions and the enrollment window.
+Let's Code: programmers register, form a four-person team for the one live event through invitations that must be accepted, and register the completed team. An organizer manages events and closes them. The governing idea is **invite = tentative, accept = commitment, register = locked**.
 
-Intent history, oldest first: INTENT-V1.md (single-browser demo; its **Boundaries** still govern team, invitation and privacy rules), the two deltas in `intent/current-feature.md` (organizer-managed challenges), and `intent/intentv1.md` (titled "Progressive Intent V2": real accounts and shared state; the current authority). PRODUCT-CONTEXT.md is positioning and later-scope context, not requirements. HANDOFF.md records what works, the known gaps, and the choices made where an intent left room.
+Intent history, oldest first: INTENT-V1.md (single-browser demo; its **Boundaries** still govern team, invitation and privacy rules), the two deltas in `intent/current-feature.md` (organizer-managed challenges), `intent/intentv1.md` (real accounts and shared state), and `intent/intentv2.md` (commitment rules; the current authority, and it wins where it differs from earlier ones). Both of those files are titled "Progressive Intent V2". PRODUCT-CONTEXT.md is positioning and later-scope context, not requirements. HANDOFF.md records what works, the known gaps, and the choices made where an intent left room.
 
 ## Commands
 
@@ -39,8 +39,11 @@ Things that span files and are easy to break:
 - **The actor always comes from the session.** Participant actions receive the session's own participant id; nothing in the request body can name who is acting. Keep it that way when adding actions.
 - **Privacy is enforced by `viewFor(state, viewer)`**, the only thing the server sends about state. It is assembled from `publicProfile`, `discover`, `teamView` and `invitationView`. A visitor gets the competition only; a participant gets their own email, plus a teammate's email only when that teammate set `shareEmailWithTeam`; the organizer gets competitions and enrolled teams by name, with no emails. Never send raw `state`, `state.participants` or `state.accounts`. `test/domain.test.mjs` and `test/api.test.mjs` both assert which emails appear in each view.
 - **Everything is scoped to the one live challenge.** `state.challenges[]` holds drafts and at most one `status: 'live'`. Teams and invitations carry `challengeId`, and a participant's opt-in is `openFor: <challengeId>`. The scoping lives in `teamOf`, `pendingIncoming` and `isOpen`, which read `liveChallenge(state)`; the other rules build on those, so do not query `state.teams` or `state.invitations` around them. This is what lets the same people take part in the next competition.
-- **Enrollment window.** `challenge.enrollmentOpen` gates `createTeam`, `invite`, `accept`, `setOpen(true)` and `enrollTeam`. Viewing is never gated.
-- **Team status is derived**: `teamStatus()` gives ENROLLED if `enrolledAt` is set, READY at four members, otherwise FORMING. Commitment is derived too: a person is committed when their team has two or more members; a creator alone in a draft is not, and may accept another invitation by explicitly abandoning the draft.
+- **Vocabulary.** The screens say "event", "register" and "close event"; the code still says `challenge`, `enroll`/`enrolledAt` and `enrollmentOpen` for the same things. Renaming them would touch the saved data shape, so they were left.
+- **Closing an event.** `challenge.enrollmentOpen` gates `createTeam`, `invite`, `accept`, `setOpen(true)`, `enrollTeam`, `leaveTeam` and `abandonTeam`. Viewing is never gated. Closed is different from offline (`status: 'draft'`), which is what makes room for the next event.
+- **Commitment is derived, not stored.** `isCommitted` is simply "is on a team", leader or member; `teamOf` is the one lookup and it skips dissolved teams (`dissolvedAt`). Team status is derived too: `teamStatus()` gives ENROLLED if `enrolledAt` is set, READY at four members, otherwise FORMING.
+- **A roster shrinks only two ways, both through `changeableTeam()`**: `leaveTeam` (a member, no penalty) and `abandonTeam` (the leader; free when alone, otherwise the team is dissolved, members return to the pool and the leader is added to `challenge.disqualified`). Both are refused once the team is registered or the event is closed. There is deliberately no action that lets a leader remove a member; do not add one. `isIneligible` reads the per-event disqualification, and `publicChallenge` must never include that list.
+- **The store refuses invalid states.** `commit()` calls `checkIntegrity()` before writing: nobody in two seats per event, no team over four, one live event at most. It is the last line of defence, not a substitute for the checks inside each action.
 - **`inviteBlock` is the single source for "why can't I invite this person"**, used both to refuse `invite` and to label cards. Its messages must not reveal another team's identity.
 - **Organizer notification** is a record in `state.notifications`, shown on the admin screen until marked seen, plus a server log line. There is no email; do not add a mail dependency without asking, since it affects cost and deployment.
 - **Focus survives re-render** in `public/app.js` through `data-fk` keys: `render()` refocuses the element with the same key, or the view's `h1`. Give new interactive controls a stable `data-fk`. The skill search updates only `#results` so typing keeps focus.
@@ -49,7 +52,7 @@ Things that span files and are easy to break:
 ## Tests
 
 - `test/domain.test.mjs`: rules against `domain.js`, using `data/demo.json` and a fixed `T0` timestamp.
-- `test/api.test.mjs`: starts the real server on a random port with a temporary data file and acts as separate signed-in users, each with its own cookie. Its tests run in order and build on each other (one long story), so add new ones at the point in the story where the needed state exists.
+- `test/api.test.mjs` (accounts, access control, privacy) and `test/api-rules.test.mjs` (commitment rules and simultaneous requests): each starts the real server on a random port with a temporary data file, via `test/support.mjs`, and acts as separate signed-in users with their own cookies. Within a file the tests run in order and build on each other (one long story), so add new ones at the point where the needed state exists.
 
 A rule change belongs in `domain.js` with a domain test; anything about who may do or see something also needs an API test. The UI has no automated tests in the repository.
 

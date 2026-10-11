@@ -1,14 +1,18 @@
-# Let's Code V2 — handoff
+# Let's Code — handoff
 
-V2 moves Let's Code from a single-browser demonstration to real accounts and shared state. The intent is `intent/intentv1.md` (titled "Progressive Intent V2").
+Current intent: `intent/intentv2.md` ("Real Users, Persistent Teams & Competition Rules"). It builds on the real-accounts step in `intent/intentv1.md`.
+
+The rule the whole experience is built to make obvious:
+
+**Invite = tentative · Accept = commitment · Register team = locked**
 
 ## Run it
 Requires Node 20 or newer. Nothing to install.
 
 ```
-npm run demo   # fictional accounts and a sample competition, for looking around
-npm start      # real mode: starts empty; people register, the organizer adds competitions
-npm test       # 40 checks
+npm run demo   # fictional accounts and a sample event, for looking around
+npm start      # real mode: starts empty; people register, the organizer adds events
+npm test       # 56 checks
 ```
 
 Both serve http://localhost:4747 (`PORT=8080 npm start` to change it).
@@ -21,39 +25,60 @@ To be several people at once, use separate browser profiles or private windows: 
 
 **Real mode**: set `ORGANIZER_EMAIL` and `ORGANIZER_PASSWORD` before starting. If no password is set, a random one is created for that run and printed in the terminal. Data is kept in `var/state.json` (`DATA_FILE` to move it). Delete the file to start over.
 
-## What works
-- **Accounts**: create an account (name, email, password, skills, optional picture), log in, log out. Visitors can read the open competition without an account; everything else requires one.
-- **One team per competition**: a participant cannot be on two teams, create a team while committed to another, or accept a second invitation. This is scoped to the competition, so the next one starts clean for everyone.
-- **Invitation and consent**: unchanged from V1. Being invited does not make someone a member; they must accept. Once committed they leave discovery.
-- **Team status**: Forming (fewer than four), Ready (four accepted members), Enrolled (joined the competition).
-- **Join Competition**: when a team is Ready, the person who started it gets the button. Teammates see who they are waiting for. Enrolling confirms on screen and tells the organizer.
-- **Enrollment window**: the organizer opens and closes enrollment for the live competition. Closed means no new teams, no new members, no new enrollments; everything can still be viewed.
-- **Organizer**: adds, dates, publishes and unpublishes competitions (one live at a time), opens and closes enrollment, and sees enrolled teams with their members' names.
+## The rules as built
+- **Accounts.** Register, log in, log out, and come back from another browser or device with everything as you left it. Visitors can read the open event; everything else needs an account.
+- **One event at a time.** Any number of teams can form for it. The next event starts clean for everyone.
+- **Leading is a commitment.** Creating a team makes you its leader and takes you out of the pool: you cannot be invited, opt in, or join or create another team while yours exists.
+- **Invitations are tentative.** Being invited changes nothing. Each person has at most one open invitation at a time.
+- **Accepting is a commitment.** It takes a seat. From then on that person cannot join, create, or accept into another team in this event.
+- **A leader cannot remove a member.** There is no such action, on screen or in the API. An accepted member is not a placeholder.
+- **A member may leave before registration.** They return to the pool, open to invitations again; the seat reopens; the leader is not penalised.
+- **A leader may abandon the team.**
+  - With no one else on it: freely, no consequence.
+  - With committed members: the team is dissolved, the members are released without penalty and are immediately back in the pool, and **the leader cannot take part in the rest of that event**. The team page states this before the button, and the confirmation repeats it.
+- **Registration.** Only a team with four committed members can register, and only its leader can do it. Registering locks the roster: nobody can leave, the leader cannot abandon, and there are no open invitations. Changes after that are for the organizer.
+- **Closing the event** (organizer) freezes participants: no new teams, no invitations sent or accepted, no opting in, no leaving or abandoning, no registrations. Everything stays readable and on record.
+- **Privacy.** Email is visible to its owner, and to teammates only if its owner shares it. Sharing is switched off again when someone leaves or a team is dissolved. The organizer sees registered teams and member names, no emails.
 
-## How the twelve demonstrations are verified
-`test/api.test.mjs` runs the real server and drives it over HTTP as separate signed-in users, one test per demonstration in the intent: visitor view · register, log in, opt in · create a team · invite and accept across users · four members make Ready · no second team in the same competition · Ready becomes Enrolled · organizer sees it and is notified · closing enrollment blocks formation and enrollment · the next competition starts clean · private information stays private between users · rules are enforced by the server.
+## How the sixteen demonstrations are verified
+`npm test` runs three files:
 
-That last group checks what a browser cannot be trusted with: unauthenticated actions are refused, a user cannot act on someone else's invitation even by naming them in the request, a participant cannot call organizer actions, cross-site requests are refused, passwords are stored hashed, repeated wrong passwords are slowed, and only the public folder is served.
+- `test/api-rules.test.mjs` runs the real server and acts as separate signed-in users for the commitment rules: a leader cannot join elsewhere · abandoning an empty team is free · no way to remove a member · a member leaves without the leader being penalised and the seat is refilled · abandoning with members releases them and disqualifies the leader · released members join another team at once · only a complete team registers · registration locks the roster · a closed event refuses everything · a new event lets everyone compete again, including the disqualified leader, with the earlier event's history kept.
+- It also fires requests **at the same instant**: two people accepting the last seat (exactly one wins), and one person sending "create a team" and "accept an invitation" together four times over (exactly one succeeds). After each, the saved data is read back to confirm nobody holds two seats and no team exceeds four.
+- `test/api.test.mjs` covers accounts and access: register, log out, log in again, state surviving a server restart, unauthenticated and wrong-role requests refused, acting on someone else's invitation refused, cross-site requests refused, hashed passwords, login throttling, and that each viewer receives only the emails they are entitled to.
+- `test/domain.test.mjs` holds the rule tests carried from V1 plus the new ones (33). Two V1 tests were replaced because this intent deliberately changes what they checked: a leader alone in a team could previously accept another team's invitation, and a team with members could not be abandoned at all.
 
-`test/domain.test.mjs` keeps the V1 rule coverage and adds enrollment, team status and per-viewer privacy (26 tests).
+The flows were also driven in a headless browser with separate signed-in users at desktop and phone widths (22 checks for the new rules, plus the earlier 30-check account walkthrough as a regression; no console errors). Those scripts were one-offs and are not in the repository.
 
-The same flow was also driven in a headless browser with eight separate signed-in users at desktop and phone widths (30 checks, no console errors). That script was a one-off and is not in the repository.
+## How "the database prevents it" is met
+The data store is a single JSON file written by one server process. Three things make invalid membership impossible rather than merely unlikely:
+
+1. Node handles one request at a time, and every action is one uninterrupted step from reading the state to saving it. Two simultaneous requests are therefore applied one after the other, and the second sees the first's result.
+2. Each rule is re-checked on the server on every request; the screens only hide what would be refused anyway.
+3. Before anything is written, the store itself verifies the whole state and refuses to save if anyone holds two seats in an event, a team has more than four members, or two events are live.
+
+I kept this instead of adding a database server because the intent asks for the simplest reliable implementation, and this needs no installation. Its limit is that it must stay one process on one machine. That is the point at which a real database would be worth its cost.
 
 ## What you should know before real people use it
-- **The organizer is notified in the app, not by email.** A "New enrollments" panel and a badge on the Admin tab appear when a team enrolls, and a line is written to the server log. No email is sent: there is no mail service, and choosing one affects cost and deployment, so that is yours to decide.
-- **Email addresses are not verified.** Anyone can register with any address. There is no password reset; a forgotten password currently means a new account. Both need the same mail service.
-- **It runs as one process with a JSON file.** That is what makes the rules reliable (requests are handled one at a time), and it is fine for one event's worth of people on one machine. It is not built to run as several copies behind a load balancer.
-- **It needs HTTPS in front of it when deployed.** Set `SECURE_COOKIES=1` and `HOST=0.0.0.0` behind a TLS-terminating proxy. As shipped it listens on this machine only.
+- **The organizer is notified in the app, not by email.** A "New registrations" panel and a badge on the Admin tab appear when a team registers, and a line is written to the server log. Email is deferred by your decision.
+- **Email addresses are not verified, and there is no password reset.** Both need a mail service.
+- **Exceptional roster changes after registration have no tool yet.** The intent says they need the organizer and are outside the normal participant workflow; there is no organizer screen for it, so today it would mean editing the data file.
+- **It needs HTTPS in front of it when deployed.** Set `SECURE_COOKIES=1` and `HOST=0.0.0.0` behind a TLS-terminating proxy. As shipped it listens on this machine only. The data file must be on a disk that survives redeploys.
 - **Logins last seven days and are held in memory**, so restarting the server signs everyone out. Data is not affected.
-- **There is one organizer login**, set by environment variables, not an organizer account that can be created in the app.
-- **The V1 browser-only demo is gone**, along with "View as", "Skip 48 hours" and "Reset demo". Invitations still expire after 48 hours, in real time. Anything the old demo left in a browser's storage is deleted on first load.
+- **There is one organizer login**, set by environment variables.
 
 ## Decisions I made where the intent left room
-- **Who presses Join Competition**: the person who started the team.
-- **Leaving a team is not possible, by Mark's decision (2026-10-10).** Accepting an invitation commits a participant to that team for the competition. Only an empty draft can be abandoned.
-- **Closing enrollment also stops opting in and inviting**, not only creating, accepting and enrolling, since neither could lead anywhere.
-- **A competition goes live with enrollment open.** The organizer closes it at the cutoff and can reopen it by hand.
-- **Only signed-in participants can browse people.** In V1 a visitor could; with real people that seemed wrong.
-- **The organizer sees enrolled teams and member names only.** No emails, and nothing about teams still forming beyond a count.
-- **Registering with an email that already has an account** gives a deliberately vague message, so the form cannot be used to check whether someone has signed up.
-- Carried over from V1: a creator alone in a draft is not yet committed; any member can invite; only the sender can withdraw; a declined invitation cannot be resent.
+- **"Closed" and "offline" are two organizer steps.** Closing an event freezes it but keeps it on show. Taking it offline makes room to make the next event live. I kept them separate so a closed event can stay visible until you are ready to open the next one.
+- **Closing also freezes leaving and abandoning**, since the intent says it freezes normal participant changes. Declining or withdrawing an invitation, pausing, and sharing an email still work.
+- **A released or departed member is automatically open to invitations again**, which is how I read "returns to the available participant pool". They can pause if they prefer.
+- **A leader cannot leave their own team**, only abandon it, so leadership never passes to someone who did not ask for it.
+- **A member who left can be invited back** by the same team. Only a declined invitation cannot be repeated.
+- **Starting a team closes any invitation you had open**, because you are no longer available.
+- **The penalty is recorded per event** and disappears when the next event goes live.
+- **Wording.** The button is "Register team" and the status reads Forming, Team complete, Registered · locked. The organizer's control is "Close event" / "Reopen event". Screens say "event" throughout.
+- **A dissolved team is kept on record** but hidden from participants and not counted for the organizer.
+- Carried over: any member can invite, only the sender can withdraw an invitation, and only signed-in participants can browse people.
+
+## Earlier decisions this intent replaces
+- "Members cannot leave a team" (your answer on 2026-10-10): they now can, until the team registers.
+- A leader alone in a team could accept another team's invitation in one step. They must now abandon their empty team first.

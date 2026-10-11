@@ -271,6 +271,7 @@ form { display: grid; gap: 14px; }
 .auth h1 { font-size: 1.9rem; }
 .enroll { border: 2px solid var(--accent); background: var(--accent-soft); }
 .enroll.done { border-color: var(--ok); background: var(--ok-soft); }
+.warn-card { border: 2px solid var(--danger); border-radius: var(--radius); background: var(--surface); }
 
 /* ---------- admin ---------- */
 

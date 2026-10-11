@@ -153,34 +153,138 @@ test('pausing closes the pending invitation and hides the person', () => {
   assert.throws(() => D.invite(s, ALEX, PRIYA, T0), code('not_discoverable'));
 });
 
-test('a creator must explicitly abandon an empty draft to join another team', () => {
+// ---------- commitment: leading, leaving, abandoning ----------
+
+test('creating a team commits the leader: unavailable to others and unable to join elsewhere', () => {
   let s = D.createTeam(fresh(), ALEX, '', T0);
-  s = D.createTeam(s, CASEY, 'Cloud Crew', T0);
-  s = D.invite(s, CASEY, SAM, T0);
-  const caseyOut = lastInv(s).id;
   s = D.invite(s, ALEX, CASEY, T0);
   const toCasey = lastInv(s).id;
-  assert.throws(() => D.accept(s, toCasey, CASEY, T0), code('needs_abandon'));
-  s = D.accept(s, toCasey, CASEY, T0, { abandonDraft: true });
-  assert.equal(s.teams.length, 1);
-  assert.deepEqual(D.teamOf(s, CASEY).memberIds, [ALEX, CASEY]);
-  assert.equal(s.invitations.find((i) => i.id === caseyOut).status, 'closed');
-  assert.throws(() => D.accept(s, caseyOut, SAM, T0), code('invitation_unavailable'));
+  // Casey starts a team while that invitation is pending: it closes, and Casey leaves the pool.
+  s = D.createTeam(s, CASEY, 'Cloud Crew', T0);
+  assert.equal(s.invitations.find((i) => i.id === toCasey).status, 'closed');
+  assert.throws(() => D.accept(s, toCasey, CASEY, T0), code('invitation_unavailable'));
+  assert.ok(!D.discover(s, ALEX).some((p) => p.id === CASEY));
+  assert.throws(() => D.invite(s, ALEX, CASEY, T0), code('not_discoverable'));
+  assert.throws(() => D.setOpen(s, CASEY, true, T0), code('already_committed'));
+  assert.throws(() => D.createTeam(s, CASEY, 'Another', T0), code('already_on_team'));
+  assert.equal(D.viewFor(s, { participantId: CASEY }).me.isCommitted, true);
 });
 
-test('a draft with other members cannot be abandoned, and its creator cannot join elsewhere', () => {
+test('a leader abandons an empty team freely and can then join another', () => {
   let s = D.createTeam(fresh(), ALEX, '', T0);
   s = D.createTeam(s, CASEY, '', T0);
-  s = D.setOpen(s, ALEX, true, T0);
-  s = D.invite(s, CASEY, ALEX, T0);
-  const toAlex = lastInv(s).id;
-  // Alex's own team gains a member while that invitation is pending.
-  s = D.invite(s, ALEX, PRIYA, T0);
+  s = D.invite(s, CASEY, SAM, T0);
+  const caseyOut = lastInv(s).id;
+  s = D.abandonTeam(s, CASEY, T0);
+  assert.equal(s.teams.length, 1);
+  assert.equal(s.invitations.find((i) => i.id === caseyOut).status, 'closed');
+  assert.equal(D.isIneligible(s, CASEY), false);
+  s = D.setOpen(s, CASEY, true, T0);
+  s = D.invite(s, ALEX, CASEY, T0);
+  s = D.accept(s, lastInv(s).id, CASEY, T0);
+  assert.deepEqual(D.teamOf(s, CASEY).memberIds, [ALEX, CASEY]);
+});
+
+test('abandoning a team with committed members releases them and puts the leader out of the event', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA, JORDAN]);
+  s = D.setShareEmail(s, PRIYA, true);
+  s = D.invite(s, ALEX, SAM, T0);
+  const pending = lastInv(s).id;
+  s = D.abandonTeam(s, ALEX, T0);
+  // Dissolved: nobody holds a seat, and the open invitation is gone.
+  for (const id of [ALEX, PRIYA, JORDAN]) assert.equal(D.teamOf(s, id), null);
+  assert.equal(s.invitations.find((i) => i.id === pending).status, 'closed');
+  assert.equal(D.findPerson(s, PRIYA).shareEmailWithTeam, false);
+  // Released members carry no penalty and are straight back in the pool.
+  assert.equal(D.isIneligible(s, PRIYA), false);
+  assert.ok(D.isDiscoverable(s, PRIYA) && D.isDiscoverable(s, JORDAN));
+  s = D.createTeam(s, CASEY, '', T0);
+  s = D.invite(s, CASEY, PRIYA, T0);
   s = D.accept(s, lastInv(s).id, PRIYA, T0);
-  assert.equal(s.invitations.find((i) => i.id === toAlex).status, 'closed');
-  assert.throws(() => D.accept(s, toAlex, ALEX, T0, { abandonDraft: true }), code('invitation_unavailable'));
-  assert.throws(() => D.abandonDraft(s, ALEX, T0), code('not_empty'));
-  assert.equal(s.teams.filter((t) => t.memberIds.includes(ALEX)).length, 1);
+  s = D.createTeam(s, JORDAN, 'Jordan leads', T0);
+  assert.deepEqual(D.teamOf(s, PRIYA).memberIds, [CASEY, PRIYA]);
+  assert.equal(D.teamOf(s, JORDAN).creatorId, JORDAN);
+  // The leader cannot create, opt in, be found or be invited for the rest of this event.
+  assert.equal(D.viewFor(s, { participantId: ALEX }).me.isIneligible, true);
+  assert.throws(() => D.createTeam(s, ALEX, '', T0), code('ineligible'));
+  assert.throws(() => D.setOpen(s, ALEX, true, T0), code('ineligible'));
+  assert.ok(!D.discover(s, CASEY).some((p) => p.id === ALEX));
+  assert.throws(() => D.invite(s, CASEY, ALEX, T0), code('not_discoverable'));
+  D.checkIntegrity(s);
+});
+
+test('the penalty lasts for that event only', () => {
+  let s = D.abandonTeam(teamWith(fresh(), ALEX, [PRIYA]), ALEX, T0);
+  let id;
+  [s, id] = draft(s);
+  s = D.publishChallenge(D.unpublishChallenge(s, LIVE), id);
+  assert.equal(D.isIneligible(s, ALEX), false);
+  s = D.createTeam(s, ALEX, '', T0);
+  assert.equal(D.teamOf(s, ALEX).creatorId, ALEX);
+  // The earlier event keeps its record.
+  assert.ok(s.teams.some((t) => t.challengeId === LIVE && t.dissolvedAt));
+  assert.ok(!JSON.stringify(D.viewFor(s, null)).includes('disqualified'));
+});
+
+test('a member may leave before registration; the leader is not penalised and the seat reopens', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA, JORDAN, SAM]);
+  assert.equal(D.teamView(s, D.teamOf(s, ALEX).id, ALEX).status, 'READY');
+  s = D.setShareEmail(s, SAM, true);
+  s = D.leaveTeam(s, SAM, T0);
+  const v = D.teamView(s, D.teamOf(s, ALEX).id, ALEX);
+  assert.ok(v.status === 'FORMING' && v.openSeats === 1);
+  assert.equal(D.isIneligible(s, ALEX), false);
+  assert.equal(D.findPerson(s, SAM).shareEmailWithTeam, false);
+  assert.ok(D.isDiscoverable(s, SAM));
+  // The seat can be recruited again, by the same person or anyone else.
+  s = D.invite(s, ALEX, TAYLOR, T0);
+  s = D.accept(s, lastInv(s).id, TAYLOR, T0);
+  assert.equal(D.teamOf(s, ALEX).memberIds.length, 4);
+  assert.throws(() => D.leaveTeam(s, ALEX, T0), code('leader_cannot_leave'));
+  assert.throws(() => D.abandonTeam(s, PRIYA, T0), code('not_leader'));
+  assert.throws(() => D.leaveTeam(s, CASEY, T0), code('no_team'));
+});
+
+test('a leader has no way to remove an accepted member', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA]);
+  const accepted = s.invitations.find((i) => i.toId === PRIYA).id;
+  // Withdrawing only ever applies to an invitation still waiting for an answer.
+  assert.throws(() => D.withdraw(s, accepted, ALEX, T0), code('invitation_unavailable'));
+  assert.deepEqual(D.teamOf(s, PRIYA).memberIds, [ALEX, PRIYA]);
+  assert.ok(!Object.keys(D).some((name) => /remove|kick|replace/i.test(name)));
+});
+
+test('registration locks the roster', () => {
+  let s = D.enrollTeam(teamWith(fresh(), ALEX, [PRIYA, JORDAN, SAM]), ALEX, T0);
+  assert.throws(() => D.leaveTeam(s, PRIYA, T0), code('roster_locked'));
+  assert.throws(() => D.abandonTeam(s, ALEX, T0), code('roster_locked'));
+  assert.throws(() => D.invite(s, ALEX, TAYLOR, T0), code('team_full'));
+  const v = D.teamView(s, D.teamOf(s, ALEX).id, PRIYA);
+  assert.ok(v.status === 'ENROLLED' && v.canChange === false);
+  assert.ok(!s.invitations.some((i) => i.teamId === v.id && i.status === 'pending'));
+  assert.equal(D.teamOf(s, ALEX).memberIds.length, 4);
+});
+
+test('a closed event freezes rosters as well', () => {
+  let s = teamWith(fresh(), ALEX, [PRIYA]);
+  s = D.setEnrollment(s, LIVE, false);
+  assert.throws(() => D.leaveTeam(s, PRIYA, T0), code('enrollment_closed'));
+  assert.throws(() => D.abandonTeam(s, ALEX, T0), code('enrollment_closed'));
+  assert.deepEqual(D.teamOf(s, PRIYA).memberIds, [ALEX, PRIYA]);
+});
+
+test('the store check rejects any state with someone on two teams or an oversized team', () => {
+  const s = teamWith(fresh(), ALEX, [PRIYA]);
+  D.checkIntegrity(s);
+  const twoSeats = structuredClone(D.createTeam(s, CASEY, '', T0));
+  twoSeats.teams[1].memberIds.push(PRIYA);
+  assert.throws(() => D.checkIntegrity(twoSeats), /two seats/);
+  const five = structuredClone(s);
+  five.teams[0].memberIds.push(JORDAN, SAM, TAYLOR);
+  assert.throws(() => D.checkIntegrity(five), /invalid roster/);
+  const twoLive = structuredClone(s);
+  twoLive.challenges.push({ ...twoLive.challenges[0], id: 'other' });
+  assert.throws(() => D.checkIntegrity(twoLive), /more than one live/);
 });
 
 test('actions do not mutate the state they are given', () => {
@@ -279,7 +383,7 @@ test('a team moves FORMING, READY, ENROLLED and the organizer is told', () => {
   const v = D.teamView(s, D.teamOf(s, ALEX).id, ALEX);
   assert.ok(v.status === 'READY' && v.canEnroll);
   assert.equal(D.teamView(s, v.id, PRIYA).canEnroll, false);
-  assert.throws(() => D.enrollTeam(s, PRIYA, T0), code('not_creator'));
+  assert.throws(() => D.enrollTeam(s, PRIYA, T0), code('not_leader'));
   assert.throws(() => D.enrollTeam(s, CASEY, T0), code('no_team'));
   s = D.enrollTeam(s, ALEX, T0);
   assert.equal(D.teamView(s, v.id, PRIYA).status, 'ENROLLED');

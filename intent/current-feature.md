@@ -83,3 +83,15 @@ Acceptance commits a participant to that team for the competition. Only a draft 
 
 ## New Boundary
 Do not add a way to leave a forming team.
+
+---
+
+# Intent: commitment rules (2026-10-11)
+
+`intent/intentv2.md` ("Real Users, Persistent Teams & Competition Rules") is Mark's authoritative intent for this step and applies in full. Where it differs from earlier intents and deltas, it wins. In particular it replaces Delta 3 (members may now leave an unregistered team) and the V1 rule that a leader alone in a draft could still accept another team's invitation.
+
+## Outcome
+A real multi-user team-formation application whose competition rules are enforced by the server: invite is tentative, accept is commitment, registering the team locks it.
+
+## Success / Evidence
+The sixteen demonstrations listed under "Success Evidence" in `intent/intentv2.md`, shown by automated tests and the running application.

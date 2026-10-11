@@ -55,19 +55,19 @@ export const findPerson = (state, id) => state.participants.find((p) => p.id ===
 // Teams, invitations and availability are always looked up within the live challenge.
 export const teamOf = (state, personId) => {
   const id = liveId(state);
-  return state.teams.find((t) => t.challengeId === id && t.memberIds.includes(personId)) ?? null;
+  return state.teams.find((t) => t.challengeId === id && !t.dissolvedAt && t.memberIds.includes(personId)) ?? null;
 };
+
+// A leader who abandoned a team with committed members sits out the rest of that event.
+export const isIneligible = (state, personId) => !!liveChallenge(state)?.disqualified?.includes(personId);
 
 export const isOpen = (state, personId) => {
   const id = liveId(state);
   return !!id && findPerson(state, personId)?.openFor === id;
 };
 
-// A creator alone in a draft is not yet committed; two or more members are.
-export const isCommitted = (state, personId) => {
-  const team = teamOf(state, personId);
-  return !!team && team.memberIds.length > 1;
-};
+// Leading a team and having accepted a seat are both commitments.
+export const isCommitted = (state, personId) => !!teamOf(state, personId);
 
 export const isDiscoverable = (state, personId) => {
   return isOpen(state, personId) && !isCommitted(state, personId);
@@ -163,6 +163,9 @@ export function teamView(state, teamId, viewerId) {
     status: teamStatus(team),
     creatorName: findPerson(state, team.creatorId).displayName,
     canEnroll: viewerId === team.creatorId && teamStatus(team) === 'READY' && enrollmentOpen(state),
+    isLeader: viewerId === team.creatorId,
+    // Until the team registers, a member may leave and the leader may abandon.
+    canChange: isMember && !team.enrolledAt && enrollmentOpen(state),
     skills: teamSkills(members),
     invitations: isMember
       ? state.invitations
@@ -227,15 +230,23 @@ const begin = (state, now) => {
 };
 
 const NO_LIVE = 'No challenge is open right now.';
-const CLOSED = 'Enrollment for this competition is closed.';
+const CLOSED = 'This event is closed.';
+const INELIGIBLE = 'You abandoned a team with committed members, so you cannot take part in the rest of this event.';
 
 const mustFind = (s, id) => findPerson(s, id) ?? fail('unknown_person', 'That participant does not exist.');
 
-function removeDraft(s, team, now) {
+function closeTeamInvitations(s, team, now) {
   for (const inv of s.invitations) {
     if (inv.teamId === team.id && inv.status === 'pending') close(inv, 'closed', now);
   }
-  s.teams = s.teams.filter((t) => t.id !== team.id);
+}
+
+// Shared guards for the two ways a roster can shrink.
+function changeableTeam(s, personId) {
+  const team = teamOf(s, personId) ?? fail('no_team', 'You are not on a team for this event.');
+  if (team.enrolledAt) fail('roster_locked', 'Your team is registered, so its roster is locked. Ask the organizer if something has to change.');
+  if (!enrollmentOpen(s)) fail('enrollment_closed', CLOSED);
+  return team;
 }
 
 export function addParticipant(state, { email, displayName, avatar, skills }) {
@@ -272,18 +283,48 @@ export function createTeam(state, creatorId, name, now) {
   const creator = mustFind(s, creatorId);
   const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
   if (!challenge.enrollmentOpen) fail('enrollment_closed', CLOSED);
+  if (isIneligible(s, creatorId)) fail('ineligible', INELIGIBLE);
   if (teamOf(s, creatorId)) fail('already_on_team', 'You already have a team for this event.');
   const teamName = String(name ?? '').trim().slice(0, 40) || `${creator.displayName}'s team`;
   s.teams.push({ id: `team-${s.seq++}`, challengeId: challenge.id, name: teamName, creatorId, memberIds: [creatorId] });
+  // Leading a team is a commitment: no longer available to other teams.
+  creator.openFor = null;
+  const incoming = pendingIncoming(s, creatorId);
+  if (incoming) close(incoming, 'closed', now);
   return s;
 }
 
-export function abandonDraft(state, personId, now) {
+// The leader gives up the team. Free while nobody else has accepted; once
+// someone has, they are released without penalty and the leader is out of the event.
+export function abandonTeam(state, leaderId, now) {
   const s = begin(state, now);
-  const team = teamOf(s, personId);
-  if (!team) fail('no_team', 'You have no draft team to abandon.');
-  if (team.memberIds.length > 1) fail('not_empty', 'Only a draft with no other members can be abandoned.');
-  removeDraft(s, team, now);
+  const team = changeableTeam(s, leaderId);
+  if (team.creatorId !== leaderId) fail('not_leader', 'Only the team leader can abandon the team. You can leave it instead.');
+  closeTeamInvitations(s, team, now);
+  if (team.memberIds.length === 1) {
+    s.teams = s.teams.filter((t) => t.id !== team.id);
+    return s;
+  }
+  team.dissolvedAt = now;
+  for (const id of team.memberIds) {
+    const p = findPerson(s, id);
+    p.shareEmailWithTeam = false;
+    p.openFor = id === leaderId ? null : team.challengeId; // released members return to the pool
+  }
+  const challenge = liveChallenge(s);
+  challenge.disqualified = [...(challenge.disqualified ?? []), leaderId];
+  return s;
+}
+
+// A committed member steps out before the team registers and returns to the pool.
+export function leaveTeam(state, memberId, now) {
+  const s = begin(state, now);
+  const team = changeableTeam(s, memberId);
+  if (team.creatorId === memberId) fail('leader_cannot_leave', 'The team leader cannot leave the team, only abandon it.');
+  team.memberIds = team.memberIds.filter((id) => id !== memberId);
+  const p = findPerson(s, memberId);
+  p.shareEmailWithTeam = false;
+  p.openFor = team.challengeId;
   return s;
 }
 
@@ -327,33 +368,20 @@ export function decline(state, invitationId, recipientId, now) {
   return s;
 }
 
-export function accept(state, invitationId, recipientId, now, { abandonDraft: abandon = false } = {}) {
+export function accept(state, invitationId, recipientId, now) {
   const s = begin(state, now);
   const inv = pendingFor(s, invitationId, recipientId, 'toId');
   if (!enrollmentOpen(s)) fail('enrollment_closed', CLOSED);
   const team = s.teams.find((t) => t.id === inv.teamId);
-  if (!team || team.memberIds.length >= TEAM_SIZE) {
+  if (!team || team.dissolvedAt || team.memberIds.length >= TEAM_SIZE) {
     fail('invitation_unavailable', 'This invitation is no longer available.');
   }
-  const own = teamOf(s, recipientId);
-  if (own) {
-    if (own.memberIds.length > 1) fail('already_committed', 'You are already committed to a team for this event.');
-    if (!abandon) fail('needs_abandon', 'Abandon your draft team before joining another.');
-    removeDraft(s, own, now);
-  }
+  if (isIneligible(s, recipientId)) fail('ineligible', INELIGIBLE);
+  if (teamOf(s, recipientId)) fail('already_committed', 'You are already committed to a team for this event.');
   team.memberIds.push(recipientId);
   close(inv, 'accepted', now);
-  // Everyone on a team of two or more is committed: out of discovery, no open invitations.
-  for (const id of team.memberIds) {
-    findPerson(s, id).openFor = null;
-    const other = pendingIncoming(s, id);
-    if (other) close(other, 'closed', now);
-  }
-  if (team.memberIds.length === TEAM_SIZE) {
-    for (const i of s.invitations) {
-      if (i.teamId === team.id && i.status === 'pending') close(i, 'closed', now);
-    }
-  }
+  findPerson(s, recipientId).openFor = null;
+  if (team.memberIds.length === TEAM_SIZE) closeTeamInvitations(s, team, now);
   return s;
 }
 
@@ -362,6 +390,7 @@ export function setOpen(state, personId, open, now) {
   const p = mustFind(s, personId);
   const challenge = liveChallenge(s) ?? fail('no_live_challenge', NO_LIVE);
   if (open && !challenge.enrollmentOpen) fail('enrollment_closed', CLOSED);
+  if (open && isIneligible(s, personId)) fail('ineligible', INELIGIBLE);
   if (open && isCommitted(s, personId)) fail('already_committed', 'You are already committed to a team for this event.');
   p.openFor = open ? challenge.id : null;
   if (!open) {
@@ -453,14 +482,14 @@ export function setEnrollment(state, id, open) {
 export function enrollTeam(state, personId, now) {
   const s = begin(state, now);
   const team = teamOf(s, personId) ?? fail('no_team', 'You are not on a team for this competition.');
-  if (team.creatorId !== personId) fail('not_creator', 'Only the person who started the team can join the competition.');
-  if (team.enrolledAt) fail('already_enrolled', 'Your team has already joined the competition.');
+  if (team.creatorId !== personId) fail('not_leader', 'Only the team leader can register the team.');
+  if (team.enrolledAt) fail('already_enrolled', 'Your team is already registered.');
   const members = new Set(team.memberIds);
   const valid = [...members].every(
-    (id) => findPerson(s, id) && s.teams.filter((t) => t.challengeId === team.challengeId && t.memberIds.includes(id)).length === 1,
+    (id) => findPerson(s, id) && s.teams.filter((t) => t.challengeId === team.challengeId && !t.dissolvedAt && t.memberIds.includes(id)).length === 1,
   );
   if (members.size !== TEAM_SIZE || team.memberIds.length !== TEAM_SIZE || !valid) {
-    fail('not_ready', `A team needs exactly ${TEAM_SIZE} members to join the competition.`);
+    fail('not_ready', `A team needs exactly ${TEAM_SIZE} committed members to register.`);
   }
   if (!enrollmentOpen(s)) fail('enrollment_closed', CLOSED);
   team.enrolledAt = now;
@@ -481,7 +510,7 @@ function adminOverview(state) {
   const teamName = (id) => state.teams.find((t) => t.id === id)?.name ?? 'A team';
   return {
     challenges: state.challenges.map((c) => {
-      const teams = state.teams.filter((t) => t.challengeId === c.id);
+      const teams = state.teams.filter((t) => t.challengeId === c.id && !t.dissolvedAt);
       return {
         ...publicChallenge(c),
         status: c.status,
@@ -516,6 +545,7 @@ export function viewFor(state, viewer) {
       shareEmailWithTeam: p.shareEmailWithTeam,
       isOpen: isOpen(state, p.id),
       isCommitted: isCommitted(state, p.id),
+      isIneligible: isIneligible(state, p.id),
     },
     people: discover(state, p.id),
     team: team && teamView(state, team.id, p.id),
@@ -525,4 +555,24 @@ export function viewFor(state, viewer) {
       .map((i) => ({ teamName: i.teamName, status: i.status }))
       .reverse(),
   };
+}
+
+// ---------- integrity ----------
+
+// The store refuses to save any state that breaks these, whatever produced it.
+export function checkIntegrity(state) {
+  if (state.challenges.filter((c) => c.status === 'live').length > 1) throw new Error('integrity: more than one live event');
+  const seat = new Set();
+  for (const team of state.teams) {
+    if (team.dissolvedAt) continue;
+    const members = new Set(team.memberIds);
+    if (members.size !== team.memberIds.length || members.size < 1 || members.size > TEAM_SIZE || !members.has(team.creatorId)) {
+      throw new Error(`integrity: team ${team.id} has an invalid roster`);
+    }
+    for (const id of members) {
+      const key = `${team.challengeId}|${id}`;
+      if (seat.has(key)) throw new Error(`integrity: ${id} holds two seats in ${team.challengeId}`);
+      seat.add(key);
+    }
+  }
 }
