@@ -44,6 +44,7 @@ const ORGANIZER_ACTIONS = {
   deleteChallenge: (s, a) => D.deleteChallenge(s, String(a.id)),
   setEnrollment: (s, a) => D.setEnrollment(s, String(a.id), a.open === true),
   markSeen: (s) => D.markNotificationsSeen(s),
+  markInquiriesSeen: (s) => D.markInquiriesSeen(s),
 };
 
 export function createApp({
@@ -59,6 +60,8 @@ export function createApp({
   const orgEmail = organizerEmail.trim().toLowerCase();
   const sessions = new Sessions({ now });
   const attempts = new Attempts({ now });
+  // The inquiry form is the one thing anyone may write to, so each address gets a few an hour.
+  const inquiries = new Attempts({ max: 5, windowMs: 60 * 60 * 1000, now });
   let state = load();
 
   function load() {
@@ -186,6 +189,19 @@ export function createApp({
     signIn(res, identity);
   }
 
+  function inquiry(body, req, res) {
+    const identity = identityOf(req);
+    const from = req.socket.remoteAddress;
+    if (inquiries.blocked(from)) throw new HttpError(429, 'too_many_inquiries', 'That is a lot of inquiries. Please try again in an hour.');
+    // A field people never see: anything that fills it is a script, and is quietly ignored.
+    if (!body.website) {
+      commit(D.addInquiry(state, body, now()));
+      inquiries.fail(from);
+      log(`[notify] Sponsor inquiry from ${state.inquiries.at(-1).company}.`);
+    }
+    send(res, 200, { view: viewFor(identity) });
+  }
+
   function action(body, identity, res) {
     const type = String(body.type ?? '');
     let next;
@@ -214,6 +230,7 @@ export function createApp({
     const body = await readJson(req);
     if (path === '/api/register') return register(body, res);
     if (path === '/api/login') return login(body, req, res);
+    if (path === '/api/inquiry') return inquiry(body, req, res);
     if (path === '/api/logout') {
       sessions.destroy(tokenOf(req));
       return send(res, 200, { view: viewFor(null) }, { 'Set-Cookie': cookie('', 0) });

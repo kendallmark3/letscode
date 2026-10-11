@@ -199,6 +199,40 @@ test('state is shared and durable: it survives a restart, and sessions do not', 
   assert.equal(v.team.name, 'Team Ben');
 });
 
+test('anyone can send a sponsor inquiry; only the organizer can read them', async () => {
+  const ask = { name: 'Dana Reyes', company: 'Northwind', email: 'dana@northwind.example', message: 'We would like to sponsor.' };
+  const visitor = user();
+  const sent = await visitor.call('/api/inquiry', ask);
+  assert.equal(sent.status, 200);
+  assert.equal(sent.view.role, 'visitor');
+  refused(await visitor.call('/api/inquiry', { ...ask, email: 'nope' }), 409, 'bad_email');
+  refused(await visitor.call('/api/inquiry', { ...ask, company: '' }), 409, 'bad_company');
+  refused(await visitor.call('/api/inquiry', ask, { Origin: 'https://evil.example' }), 403, 'bad_origin');
+  refused(await visitor.call('/api/inquiry', { ...ask, message: 'x'.repeat(300_000) }), 413, 'too_large');
+  // A script that fills the hidden field gets a normal answer and nothing is stored.
+  assert.equal((await visitor.call('/api/inquiry', { ...ask, company: 'Botco', website: 'http://spam.example' })).status, 200);
+
+  await organizer.login(ORG.email, ORG.password);
+  let admin = (await organizer.view()).admin;
+  assert.deepEqual(admin.inquiries.map((i) => i.company), ['Northwind']);
+  assert.equal(admin.inquiries[0].email, 'dana@northwind.example');
+  assert.ok(h.logs.some((l) => l.includes('[notify] Sponsor inquiry from Northwind')));
+
+  const again = user();
+  await again.login('ada@example.com');
+  for (const v of [await again.view(), await user().view()]) {
+    assert.ok(!JSON.stringify(v).includes('Northwind') && !JSON.stringify(v).includes('dana@'));
+  }
+  refused(await again.act('markInquiriesSeen'), 403, 'organizer_only');
+  admin = (await organizer.ok('markInquiriesSeen')).admin;
+  assert.ok(admin.inquiries.every((i) => i.seen));
+
+  // A handful an hour from one address, then no more.
+  for (let i = 0; i < 4; i++) assert.equal((await visitor.call('/api/inquiry', { ...ask, company: `Co ${i}` })).status, 200);
+  refused(await visitor.call('/api/inquiry', ask), 429, 'too_many_inquiries');
+  assert.equal((await organizer.view()).admin.inquiries.length, 5);
+});
+
 test('repeated wrong passwords are slowed down', async () => {
   const u = user();
   for (let i = 0; i < 10; i++) refused(await u.login('cy@example.com', `guess-${i}`), 401, 'bad_login');

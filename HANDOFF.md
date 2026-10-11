@@ -12,6 +12,22 @@ The rule the whole experience is built to make obvious:
 - The team picture is an original illustration drawn in the page itself (four figures with different skills around a shared screen, linked to an AI spark, with a "proof" badge). It uses the page's own colours, so it follows light and dark, and carries a text description for screen readers. No photo, no real person, no outside image service.
 - Recognition is described, not built: there is no winners page, badge or ranking yet. The page promises no jobs or earnings.
 
+## Sponsor page (intent/sponsor.md)
+- **Where:** a "Sponsors" link in the header and a band on the front page, both visible to anyone. The page is public.
+- **What it says:** what Intent Driven Saturdays is, how a sponsored challenge works in four steps, why sponsor (claims versus evidence), the Challenge Sponsor package at **$7,500** ($5,000 prize pool, $2,500 event and production), how it is kept fair, and a form to start a conversation.
+- **Inquiries:** name, company, work email and an optional message. No checkout and nothing charged. They are saved in the app and listed for the organizer on the Admin screen, with a badge until marked as seen, plus a line in the server log. **No email is sent**; the organizer replies by their own means for now.
+- **Protection on the public form:** a few inquiries per address per hour, a cap of 200 unread, size limits, same-site requests only, and a hidden field that silently drops simple bots. Inquiries are never sent to visitors or participants.
+
+Where sponsor.md and the site disagreed, as agreed with Mark:
+- "25 candidates, individually or in small teams" became **teams of four, about six teams as a target**, because the site only forms teams of four.
+- **$7,500** is shown as starting guidance with final terms agreed in conversation. PRODUCT-CONTEXT.md, which gave a $7,000–$10,000 working range, now notes this figure.
+- Demonstrations, judging and the post-event summary are described as part of **the event**. The website does none of them.
+- The page states that teams keep their code, sponsors see demonstrations and results rather than source, emails are never handed over, and introductions need the participant's agreement. These come from PRODUCT-CONTEXT.md.
+- It says plainly that no event has run yet. There are no participant counts, logos or testimonials.
+- sponsor.md describes one package, so one is shown.
+
+Promised to sponsors but not yet possible on the site: **branding and recognition on the challenge page**, and showing developers that a prize is funded. The front page still labels the sample prize "illustrative, not funded". Letting the organizer mark an event's prize as funded and name its sponsor is the obvious next step.
+
 ## Run it
 Requires Node 20 or newer. Nothing to install.
 

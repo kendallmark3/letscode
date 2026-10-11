@@ -220,7 +220,40 @@ form { display: grid; gap: 14px; }
   /* On a phone the way in comes before the supporting points. */
   .pitch-text .row { order: 1; }
   .pitch-points { order: 2; }
+  .pitch-text > .hint { order: 3; }
 }
+
+/* ---------- sponsors ---------- */
+
+.sponsor-band {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px;
+  padding: 16px 20px; border-radius: var(--radius); border: 1px dashed var(--brand); background: var(--surface);
+  color: var(--ink); text-decoration: none;
+}
+.sponsor-band:hover { background: var(--brand-soft); }
+.view-sponsors .pitch h1 { font-size: clamp(2.1rem, 5.6vw, 3.4rem); }
+.slogan { font-weight: 700; color: var(--brand); }
+.section-title { font-size: 1.6rem; margin-bottom: 14px; }
+.steps.four { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.why { display: grid; gap: 14px; }
+.why .section-title { margin-bottom: 0; }
+.versus { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.versus .card { gap: 4px; }
+.versus .then { margin-top: 12px; color: var(--accent); }
+.ask { font-size: 1.15rem; color: var(--muted); }
+.ask.strong { font-weight: 800; color: var(--ink); font-size: 1.3rem; line-height: 1.25; }
+.pitch-points.two-col { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px 24px; }
+.package { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; border: 2px solid var(--brand); }
+.package > div { display: grid; gap: 12px; align-content: start; }
+.package h2 { font-size: 1.6rem; }
+.price { font-size: clamp(2.6rem, 8vw, 3.6rem); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.split { display: grid; gap: 8px; }
+.split > div { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
+.split dt { font-weight: 800; font-size: 1.15rem; min-width: 4.5ch; }
+.split dd { color: var(--muted); }
+.decoy { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.inquiries li { align-items: flex-start; }
+.inquiry-message { margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
 
 /* ---------- challenge ---------- */
 

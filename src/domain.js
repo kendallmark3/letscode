@@ -520,6 +520,7 @@ function adminOverview(state) {
           .map((t) => ({ id: t.id, name: t.name, enrolledAt: t.enrolledAt, members: t.memberIds.map((id) => findPerson(state, id).displayName) })),
       };
     }),
+    inquiries: (state.inquiries ?? []).map((i) => ({ ...i })).reverse(),
     notifications: state.notifications
       .filter((n) => !n.seen)
       .map((n) => ({ id: n.id, at: n.at, teamName: teamName(n.teamId), challengeTitle: state.challenges.find((c) => c.id === n.challengeId)?.title ?? '' })),
@@ -555,6 +556,37 @@ export function viewFor(state, viewer) {
       .map((i) => ({ teamName: i.teamName, status: i.status }))
       .reverse(),
   };
+}
+
+// ---------- sponsor inquiries ----------
+
+export const MAX_UNREAD_INQUIRIES = 200;
+
+// A company asking to talk about sponsoring. Anyone may send one; only the organizer reads them.
+export function addInquiry(state, { name, company, email, message }, now) {
+  const s = structuredClone(state);
+  const f = {
+    name: String(name ?? '').trim(),
+    company: String(company ?? '').trim(),
+    email: String(email ?? '').trim(),
+    message: String(message ?? '').trim(),
+  };
+  if (!f.name || f.name.length > 80) fail('bad_name', 'Enter your name, up to 80 characters.');
+  if (!f.company || f.company.length > 120) fail('bad_company', 'Enter your company, up to 120 characters.');
+  if (f.email.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email)) fail('bad_email', 'Enter a valid email address so we can reply.');
+  if (f.message.length > 1500) fail('bad_message', 'Keep the message under 1,500 characters.');
+  s.inquiries = s.inquiries ?? []; // data files from before this feature have none
+  if (s.inquiries.filter((i) => !i.seen).length >= MAX_UNREAD_INQUIRIES) {
+    fail('inquiries_full', 'We cannot take more inquiries right now. Please try again later.');
+  }
+  s.inquiries.push({ id: `inq-${s.seq++}`, ...f, at: now, seen: false });
+  return s;
+}
+
+export function markInquiriesSeen(state) {
+  const s = structuredClone(state);
+  for (const i of s.inquiries ?? []) i.seen = true;
+  return s;
 }
 
 // ---------- integrity ----------

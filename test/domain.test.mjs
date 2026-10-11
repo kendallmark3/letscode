@@ -456,3 +456,35 @@ test('a participant view holds only their own email, plus teammates who chose to
   // The organizer sees no emails at all.
   assert.deepEqual(emailsIn(D.viewFor(s, { organizer: true })), []);
 });
+
+// ---------- sponsor inquiries ----------
+
+const ask = { name: 'Dana Reyes', company: 'Northwind', email: 'dana@northwind.example', message: 'Tell me more.' };
+
+test('a sponsor inquiry is validated, stored, and visible only to the organizer', () => {
+  let s = D.addInquiry(fresh(), ask, T0);
+  const admin = D.viewFor(s, { organizer: true }).admin;
+  assert.equal(admin.inquiries.length, 1);
+  assert.deepEqual({ ...admin.inquiries[0], id: undefined }, { ...ask, at: T0, seen: false, id: undefined });
+  for (const viewer of [null, { participantId: ALEX }]) {
+    assert.ok(!JSON.stringify(D.viewFor(s, viewer)).includes('Northwind'));
+  }
+  assert.throws(() => D.addInquiry(s, { ...ask, name: ' ' }, T0), code('bad_name'));
+  assert.throws(() => D.addInquiry(s, { ...ask, company: '' }, T0), code('bad_company'));
+  assert.throws(() => D.addInquiry(s, { ...ask, email: 'not-an-email' }, T0), code('bad_email'));
+  assert.throws(() => D.addInquiry(s, { ...ask, message: 'x'.repeat(1501) }, T0), code('bad_message'));
+  s = D.addInquiry(s, { ...ask, company: 'Second Co', message: '' }, T0 + 1);
+  assert.deepEqual(D.viewFor(s, { organizer: true }).admin.inquiries.map((i) => i.company), ['Second Co', 'Northwind']);
+  s = D.markInquiriesSeen(s);
+  assert.ok(D.viewFor(s, { organizer: true }).admin.inquiries.every((i) => i.seen));
+});
+
+test('inquiries work on a data file saved before the feature existed, and unread ones are capped', () => {
+  const old = fresh();
+  delete old.inquiries;
+  assert.deepEqual(D.viewFor(old, { organizer: true }).admin.inquiries, []);
+  let s = D.markInquiriesSeen(old);
+  for (let i = 0; i < D.MAX_UNREAD_INQUIRIES; i++) s = D.addInquiry(s, ask, T0 + i);
+  assert.throws(() => D.addInquiry(s, ask, T0), code('inquiries_full'));
+  D.addInquiry(D.markInquiriesSeen(s), ask, T0);
+});
