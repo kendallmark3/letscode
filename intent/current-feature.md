@@ -119,3 +119,15 @@ The running application satisfies every rule in `intent/intentv5.md` under the n
 
 ## Success / Evidence
 The sixteen demonstrations listed under "Success Evidence" in `intent/intentv5.md` pass as automated tests on the current code.
+
+---
+
+# Intent: sponsor page (2026-10-11)
+
+`intent/sponsor.md` is Mark's authoritative intent for this step. Where it differs from the site, the resolutions Mark approved apply: teams of four (about six teams as a target) instead of "25 candidates"; $7,500 as starting guidance; event-day benefits described as part of the event, not as site features; inquiries saved in the app for the organizer, with no checkout and no email yet.
+
+## Outcome
+A public sponsor-facing page that answers "why should my company sponsor one of these challenges?" within a few minutes, looks worth sponsoring, stays consistent with the rest of the site, and ends in an inquiry.
+
+## Success / Evidence
+Logged out, anyone can reach the page from a Sponsors link, read what Intent Driven Saturdays is, what a sponsor funds and receives, the approximate cost, and send an inquiry that the organizer then sees on the Admin screen. Inquiries are visible to no one else. All existing tests pass.

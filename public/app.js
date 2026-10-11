@@ -2,7 +2,7 @@
 // the server gives this signed-in user and sends each action back to be decided there.
 
 const PARTICIPANT_VIEWS = ['people', 'team', 'inbox'];
-const VIEWS = ['challenge', ...PARTICIPANT_VIEWS, 'admin', 'login', 'join'];
+const VIEWS = ['challenge', ...PARTICIPANT_VIEWS, 'admin', 'sponsors', 'login', 'join'];
 const SKILL_IDEAS = ['JavaScript', 'Python', 'Java', 'C#', 'Testing', 'UI design', 'APIs', 'Databases', 'Cloud', 'AI integration', 'Product thinking', 'Presentation'];
 const MAX_SKILLS = 5;
 const REFRESH_MS = 5000;
@@ -11,7 +11,7 @@ const app = document.getElementById('app');
 const toastEl = document.getElementById('toast');
 
 let view;
-const ui = { view: 'challenge', query: '', pendingAvatar: null, editing: null };
+const ui = { view: 'challenge', query: '', pendingAvatar: null, editing: null, inquirySent: null };
 
 // ---------- server ----------
 
@@ -40,7 +40,7 @@ async function act(type, args, message) {
 
 // Pick up other people's actions, unless this user is in the middle of typing.
 async function refresh() {
-  if (document.hidden || ui.editing || ['login', 'join'].includes(ui.view)) return;
+  if (document.hidden || ui.editing || ['login', 'join', 'sponsors'].includes(ui.view)) return;
   if (document.activeElement?.matches('input:not([type="checkbox"]), textarea')) return;
   try {
     const next = await api('/api/view');
@@ -115,11 +115,11 @@ function demoBar() {
 }
 
 function header() {
-  const labels = { challenge: 'Challenge', people: 'People', team: 'My team', inbox: 'Inbox', admin: 'Admin' };
-  const shown = ['challenge', ...(view.role === 'participant' ? PARTICIPANT_VIEWS : []), ...(view.role === 'organizer' ? ['admin'] : [])];
+  const labels = { challenge: 'Challenge', people: 'People', team: 'My team', inbox: 'Inbox', admin: 'Admin', sponsors: 'Sponsors' };
+  const shown = ['challenge', ...(view.role === 'participant' ? PARTICIPANT_VIEWS : []), ...(view.role === 'organizer' ? ['admin'] : []), 'sponsors'];
   const badge = (v) => {
     if (v === 'inbox' && view.invitation) return `<span class="badge" aria-label="1 invitation">1</span>`;
-    const n = v === 'admin' ? view.admin.notifications.length : 0;
+    const n = v === 'admin' ? view.admin.notifications.length + view.admin.inquiries.filter((i) => !i.seen).length : 0;
     return n ? `<span class="badge" aria-label="${n} new">${n}</span>` : '';
   };
   const tabs = shown.map((v) => `<a href="#${v}" data-fk="tab-${v}"${ui.view === v ? ' aria-current="page"' : ''}>${labels[v]}${badge(v)}</a>`).join('');
@@ -240,6 +240,8 @@ function nextStep() {
   </section>`;
 }
 
+const star = (x, y, s, fill) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -10 L2.6 -2.6 L10 0 L2.6 2.6 L0 10 L-2.6 2.6 L-10 0 L-2.6 -2.6 Z" fill="${fill}"/>`;
+
 // An original illustration: four teammates around shared work, linked through an AI spark.
 // Colours come from the page's own tokens so it follows light and dark appearance.
 function teamArt() {
@@ -251,7 +253,6 @@ function teamArt() {
       <text x="${x}" y="${y - 43}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${label}</text>
     </g>`;
   const link = (x, y) => `<path d="M260 108 Q${(260 + x) / 2} ${y - 120} ${x} ${y - 62}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-dasharray="3 7" stroke-linecap="round" opacity="0.55"/>`;
-  const star = (x, y, s, fill) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -10 L2.6 -2.6 L10 0 L2.6 2.6 L0 10 L-2.6 2.6 L-10 0 L-2.6 -2.6 Z" fill="${fill}"/>`;
   const people = [[74, 236, '#6d5ef0', 'UI'], [150, 262, '#0ea371', 'API'], [370, 262, '#e8590c', 'Tests'], [446, 236, '#d6409f', 'AI']];
   return `
   <svg class="team-art" viewBox="0 0 520 380" role="img" aria-labelledby="art-title art-desc">
@@ -317,7 +318,8 @@ function challengeView() {
       <h2>No event is open right now</h2>
       <p>Teams form around an open event. When the organizer opens one, it appears here.</p>
       ${view.role === 'organizer' ? `<a class="btn primary" href="#admin">Manage events</a>` : ''}
-    </div>`;
+    </div>
+    ${sponsorBand()}`;
   }
   const prize = c.illustrativePrizeUSD ? `$${Number(c.illustrativePrizeUSD).toLocaleString('en-US')}` : '';
   return `
@@ -337,6 +339,7 @@ function challengeView() {
     ${prize ? `<p class="notice"><strong>This is a demonstration.</strong> The prize amount is an example of what a sponsored event could offer. No prize or sponsor exists yet.</p>` : ''}
   </section>
   ${nextStep()}
+  ${sponsorBand()}
   <section class="steps" aria-label="How it works">
     <div><span class="num">1</span><h3>Invite is tentative</h3><p>A leader invites people with the skills the team needs. Nothing is settled until they answer.</p></div>
     <div><span class="num">2</span><h3>Accept is commitment</h3><p>Accepting takes a seat. From then on you can’t join or lead another team in this event.</p></div>
@@ -606,6 +609,182 @@ function inboxView() {
   }`;
 }
 
+// ---------- sponsors ----------
+
+function sponsorBand() {
+  return `
+  <a class="sponsor-band" href="#sponsors" data-fk="sponsor-band">
+    <span><strong>Companies: sponsor a challenge.</strong> Fund the prize and see what teams can really build.</span>
+    <span class="btn ghost">For sponsors</span>
+  </a>`;
+}
+
+// An original illustration: six teams of four facing a stage where work is demonstrated,
+// under a banner left blank for the sponsor. No real company is shown.
+function sponsorArt() {
+  const colours = ['#6d5ef0', '#0ea371', '#e8590c', '#d6409f', '#0b8fd6', '#c79a00'];
+  const team = (cx, cy, colour) =>
+    [-24, -8, 8, 24].map((dx) => `<circle cx="${cx + dx}" cy="${cy}" r="7" fill="${colour}"/><path d="M${cx + dx - 8} ${cy + 21} q0 -12 8 -12 q8 0 8 12 z" fill="${colour}" opacity="0.85"/>`).join('');
+  const seats = [[104, 282], [260, 282], [416, 282], [150, 332], [260, 332], [370, 332]];
+  return `
+  <svg class="team-art" viewBox="0 0 520 380" role="img" aria-labelledby="sart-title sart-desc">
+    <title id="sart-title">Teams presenting their work at a sponsored challenge</title>
+    <desc id="sart-desc">Six teams of four face a stage where a finished solution is being demonstrated on a large screen. Above the stage hangs a banner reading “your company”, left blank for the sponsor, and a prize ribbon sits beside the screen.</desc>
+    <defs>
+      <linearGradient id="sart-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--accent-soft)"/><stop offset="1" stop-color="var(--brand-soft)"/></linearGradient>
+      <linearGradient id="sart-light" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
+    </defs>
+    <rect width="520" height="380" rx="28" fill="url(#sart-bg)"/>
+    <path d="M150 0 L60 250 L230 250 Z" fill="url(#sart-light)"/>
+    <path d="M370 0 L290 250 L460 250 Z" fill="url(#sart-light)"/>
+    ${star(70, 60, 0.8, 'var(--brand)')}${star(452, 74, 0.9, 'var(--accent)')}${star(40, 170, 0.5, 'var(--accent)')}${star(486, 190, 0.6, 'var(--brand)')}
+    <rect x="150" y="26" width="220" height="38" rx="10" fill="var(--surface)" stroke="var(--brand)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="260" y="50" text-anchor="middle" font-size="14" font-weight="800" letter-spacing="2.5" fill="var(--brand)">YOUR COMPANY</text>
+    <path d="M176 64 v14 M344 64 v14" stroke="var(--line)" stroke-width="2"/>
+    <rect x="150" y="80" width="220" height="136" rx="12" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>
+    <circle cx="164" cy="93" r="3" fill="var(--accent)"/><circle cx="174" cy="93" r="3" fill="var(--line)"/><circle cx="184" cy="93" r="3" fill="var(--line)"/>
+    <rect x="168" y="110" width="84" height="8" rx="4" fill="var(--brand)"/>
+    <rect x="168" y="126" width="56" height="8" rx="4" fill="var(--line)"/>
+    <rect x="168" y="142" width="70" height="8" rx="4" fill="var(--line)"/>
+    <rect x="274" y="170" width="16" height="30" rx="3" fill="var(--brand)" opacity="0.55"/>
+    <rect x="296" y="150" width="16" height="50" rx="3" fill="var(--brand)" opacity="0.75"/>
+    <rect x="318" y="124" width="16" height="76" rx="3" fill="var(--accent)"/>
+    <rect x="168" y="172" width="84" height="26" rx="13" fill="var(--ok)"/>
+    <path d="M180 185 l5 5 9 -10" fill="none" stroke="var(--surface)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="224" y="189.5" text-anchor="middle" font-size="11" font-weight="800" letter-spacing="1" fill="var(--surface)">PROOF</text>
+    <g transform="translate(418 150)">
+      <path d="M-12 18 l0 34 12 -9 12 9 0 -34 z" fill="var(--accent)" opacity="0.8"/>
+      <circle r="24" fill="var(--accent)"/>
+      <circle r="17" fill="none" stroke="var(--surface)" stroke-width="2" opacity="0.8"/>
+      ${star(0, 0, 1.1, 'var(--surface)')}
+    </g>
+    <text x="418" y="222" text-anchor="middle" font-size="11" font-weight="800" letter-spacing="1" fill="var(--ink)">PRIZE POOL</text>
+    <rect x="96" y="232" width="328" height="14" rx="7" fill="var(--ink)" opacity="0.16"/>
+    ${seats.map(([x, y], i) => team(x, y, colours[i])).join('')}
+  </svg>`;
+}
+
+const EVIDENCE_OF = ['Problem solving', 'Reasoning', 'Architecture', 'Implementation', 'Collaboration', 'Validation', 'Creativity', 'Delivery under equal constraints'];
+
+function inquiryForm() {
+  if (ui.inquirySent) {
+    return `
+    <section class="card enroll done" id="inquire" aria-live="polite">
+      <h2 tabindex="-1" id="inquire-h">Thank you, ${h(ui.inquirySent)}.</h2>
+      <p>Your inquiry has reached the organizer, who will get back to you at the address you gave. Nothing has been charged and nothing is committed.</p>
+    </section>`;
+  }
+  return `
+  <section class="card form-card" id="inquire" aria-labelledby="inquire-h">
+    <h2 id="inquire-h" tabindex="-1">Start a conversation</h2>
+    <p class="muted">No checkout, no commitment. Tell us who you are and the organizer will get back to you.</p>
+    <form data-form="inquiry" novalidate>
+      <div class="field"><label for="iq-name">Your name</label><input id="iq-name" name="name" maxlength="80" required autocomplete="name"></div>
+      <div class="field"><label for="iq-company">Company</label><input id="iq-company" name="company" maxlength="120" required autocomplete="organization"></div>
+      <div class="field"><label for="iq-email">Work email <span class="hint">seen only by the organizer</span></label><input id="iq-email" name="email" type="email" maxlength="200" required autocomplete="email"></div>
+      <div class="field">
+        <label for="iq-message">What would you like to explore? <span class="hint">optional</span></label>
+        <textarea id="iq-message" name="message" rows="4" maxlength="1500" placeholder="A challenge idea, timing, questions about what you would receive…"></textarea>
+      </div>
+      <div class="decoy" aria-hidden="true"><label for="iq-website">Leave this empty</label><input id="iq-website" name="website" tabindex="-1" autocomplete="off"></div>
+      <p class="form-error" role="alert"></p>
+      <div class="row"><button class="btn primary large">Send inquiry</button></div>
+    </form>
+  </section>`;
+}
+
+function sponsorView() {
+  return `
+  <section class="pitch">
+    <div class="pitch-text">
+      <p class="eyebrow">For sponsors · Intent Driven Saturdays</p>
+      <h1 tabindex="-1">Sponsor a challenge. See the evidence.</h1>
+      <p class="pitch-lede">You fund a four-hour challenge. Teams of four build under identical conditions. You see what they can actually do.</p>
+      <p class="slogan">Build Saturday. Win Money. Bring the Learning Back to Your Corporation on Monday.</p>
+      <div class="row"><button class="btn primary large" data-action="go-inquire" data-fk="go-inquire">Start a conversation</button></div>
+      <p class="hint">We are lining up our first sponsored events now. None has run yet, so there are no numbers to quote: you would be among the first.</p>
+    </div>
+    ${sponsorArt()}
+  </section>
+
+  <dl class="facts">
+    <div><dt>Teams</dt><dd>Four people</dd></div>
+    <div><dt>Time</dt><dd>Four hours</dd></div>
+    <div><dt>Challenge</dt><dd>One, for all</dd></div>
+    <div><dt>Field</dt><dd>About six teams</dd><dd class="hint">Our target per event</dd></div>
+  </dl>
+
+  <section aria-labelledby="sp-how">
+    <h2 id="sp-how" class="section-title">How it works</h2>
+    <div class="steps four">
+      <div><span class="num">1</span><h3>You sponsor the challenge</h3><p>Fund the event, the prize pool, or both. Bring a synthetic or sanitised problem, a technology focus, or let us set a neutral one. Participants never do unpaid production work for you.</p></div>
+      <div><span class="num">2</span><h3>Builders compete</h3><p>Teams of four take on the same challenge with the same time limit, rules and starting point.</p></div>
+      <div><span class="num">3</span><h3>Evidence is produced</h3><p>A running solution, the reasoning and design decisions behind it, how it was validated, a demonstration, and lessons learned.</p></div>
+      <div><span class="num">4</span><h3>You see the results</h3><p>Watch the final demonstrations and see which teams produced the strongest evidence.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="sp-why" class="why">
+    <h2 id="sp-why" class="section-title">Why sponsor</h2>
+    <p class="tagline">Stop screening claims. Start evaluating evidence.</p>
+    <div class="versus">
+      <div class="card"><p class="sub">Traditional recruiting asks</p><p class="ask">What does this candidate claim they can do?</p><p class="sub then">Intent Driven Saturdays asks</p><p class="ask strong">What can they actually demonstrate?</p></div>
+      <div class="card"><p class="sub">Traditional innovation programs</p><p class="ask">Can spend weeks discussing ideas.</p><p class="sub then">Intent Driven Saturdays</p><p class="ask strong">Creates evidence in hours.</p></div>
+    </div>
+    <div class="card">
+      <h3>It is not only about writing code. Teams produce evidence of</h3>
+      ${chips(EVIDENCE_OF)}
+      <h3>What that can mean for you</h3>
+      <ul class="pitch-points two-col">
+        <li>Employer branding and visibility in the engineering community</li>
+        <li>Recruiting exposure and talent discovery, from evidence, not résumés</li>
+        <li>New technical approaches and ideas your organisation had not considered</li>
+        <li>Adoption of your technology, when the challenge is built around it</li>
+        <li>Development for your own engineers, who can take part or observe</li>
+        <li>The final demonstrations and a summary of the results</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="card package" aria-labelledby="sp-package">
+    <div>
+      <p class="eyebrow">Sponsorship</p>
+      <h2 id="sp-package">Challenge Sponsor</h2>
+      <p class="price">$7,500</p>
+      <dl class="split">
+        <div><dt>$5,000</dt><dd>Prize pool for the winning team</dd></div>
+        <div><dt>$2,500</dt><dd>Event and production</dd></div>
+      </dl>
+      <p class="hint">Starting guidance. Final terms are agreed in conversation, and funding only the event or only the prize is possible. Nothing is charged through this site.</p>
+    </div>
+    <div>
+      <h3>What you receive</h3>
+      <ul class="pitch-points">
+        <li>Recognition as the challenge’s primary sponsor</li>
+        <li>Your branding on event materials and on the challenge page</li>
+        <li>A part in the opening or closing session</li>
+        <li>Access to the final demonstrations</li>
+        <li>A seat in judging, where appropriate</li>
+        <li>A post-event summary of results and observations</li>
+      </ul>
+      <div><button class="btn primary" data-action="go-inquire" data-fk="go-inquire-2">Start a conversation</button></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="sp-fair">
+    <h2 id="sp-fair">How we keep it fair</h2>
+    <ul class="pitch-points two-col">
+      <li><strong>No unpaid work.</strong> Challenges are synthetic, sanitised or neutral. Never your production backlog.</li>
+      <li><strong>Teams keep their code.</strong> You see demonstrations and results, not source. Buying or licensing anything is a separate agreement with the team.</li>
+      <li><strong>No contact lists.</strong> Participants’ email addresses are never sold or handed over. Introductions happen only when a participant agrees.</li>
+      <li><strong>The same for every team.</strong> One challenge, one start time, one set of rules and scoring.</li>
+      <li><strong>Honest about scope.</strong> Four hours produces a working prototype and real evidence, not a production system.</li>
+    </ul>
+  </section>
+
+  ${inquiryForm()}`;
+}
+
 // ---------- accounts ----------
 
 function loginView() {
@@ -706,7 +885,9 @@ function challengeRow(c) {
 }
 
 function adminView() {
-  const { challenges, notifications } = view.admin;
+  const { challenges, notifications, inquiries } = view.admin;
+  const unread = inquiries.filter((i) => !i.seen).length;
+  const when = (at) => new Date(at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
   const live = challenges.find((c) => c.status === 'live');
   const editing = ui.editing && ui.editing !== 'new' ? challenges.find((c) => c.id === ui.editing) : null;
   return `
@@ -718,6 +899,21 @@ function adminView() {
           <h2>New registrations</h2>
           <ul class="list">${notifications.map((n) => `<li><div><strong>${h(n.teamName)}</strong> registered for ${h(n.challengeTitle)}<br><span class="muted small">${new Date(n.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span></div></li>`).join('')}</ul>
           <div><button class="btn ghost" data-action="mark-seen" data-fk="mark-seen">Mark as seen</button></div>
+        </section>`
+      : ''
+  }
+  ${
+    inquiries.length
+      ? `<section class="card${unread ? ' enroll' : ''}" aria-label="Sponsor inquiries">
+          <h2>Sponsor inquiries ${unread ? `<span class="tag warn">${unread} new</span>` : ''}</h2>
+          <ul class="list inquiries">${inquiries
+            .map(
+              (i) => `<li><div><strong>${h(i.name)}</strong>, ${h(i.company)} ${i.seen ? '' : '<span class="tag warn">New</span>'}<br>
+              <a href="mailto:${h(i.email)}">${h(i.email)}</a> · <span class="muted small">${when(i.at)}</span>
+              ${i.message ? `<p class="inquiry-message">${h(i.message)}</p>` : ''}</div></li>`,
+            )
+            .join('')}</ul>
+          ${unread ? `<div><button class="btn ghost" data-action="mark-inquiries-seen" data-fk="mark-inquiries-seen">Mark as seen</button></div>` : ''}
         </section>`
       : ''
   }
@@ -736,6 +932,7 @@ function currentView() {
   const v = ui.view;
   if (v === 'login') return loginView();
   if (v === 'join') return joinView();
+  if (v === 'sponsors') return sponsorView();
   if (v === 'admin') {
     return view.role === 'organizer'
       ? adminView()
@@ -867,6 +1064,12 @@ const actions = {
   'set-enrollment': (el) =>
     act('setEnrollment', { id: el.dataset.id, open: el.dataset.open === '1' }, el.dataset.open === '1' ? 'The event is open again.' : 'The event is closed. Teams are frozen: no new teams, members or registrations.'),
   'mark-seen': () => act('markSeen', {}),
+  'mark-inquiries-seen': () => act('markInquiriesSeen', {}),
+  'go-inquire'() {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.getElementById('inquire').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    (document.getElementById('iq-name') ?? document.getElementById('inquire-h')).focus({ preventScroll: true });
+  },
   'delete-challenge'(el) {
     if (!confirm('Delete this draft event?')) return;
     act('deleteChallenge', { id: el.dataset.id }, 'Draft deleted.');
@@ -937,6 +1140,13 @@ app.addEventListener('submit', async (e) => {
     ui.pendingAvatar = null;
     toast('Account created. You’re not visible to anyone until you choose to be.');
     go('challenge');
+  } else if (kind === 'inquiry') {
+    const body = { name: data.get('name'), company: data.get('company'), email: data.get('email'), message: data.get('message'), website: data.get('website') };
+    const fields = { bad_name: 'iq-name', bad_company: 'iq-company', bad_email: 'iq-email', bad_message: 'iq-message' };
+    if (!(await submitForm(form, '/api/inquiry', body, fields))) return;
+    ui.inquirySent = String(body.name).trim().split(' ')[0];
+    render();
+    document.getElementById('inquire-h')?.focus();
   } else if (kind === 'challenge') {
     const id = form.dataset.id || undefined;
     const body = { type: 'saveChallenge', id, title: data.get('title'), preview: data.get('preview'), date: data.get('date') };

@@ -17,7 +17,7 @@ Give people an understandable opportunity immediately. Ask for very little. Skil
 The intended appearance is professional, welcoming, and energetic. Let Mark judge the running result. Avoid exaggerated earnings promises, a crowded feed, fabricated activity counts, or messaging that resembles a recruitment scheme.
 
 ## Commercial direction — context for later iterations
-Programmers participate free. Employers, recruiters, and technology sponsors may fund events. The proposed sponsorship range is $7,000–$10,000, potentially including a $5,000 prize. These are working assumptions, not validated pricing or a live offer. Prize funding, event operations, and any later code purchase must be explicit and distinct.
+Programmers participate free. Employers, recruiters, and technology sponsors may fund events. The proposed sponsorship range is $7,000–$10,000, potentially including a $5,000 prize. These are working assumptions, not validated pricing or a live offer. As of 2026-10-11 the public sponsor page shows one package as starting guidance: Challenge Sponsor at $7,500 ($5,000 prize pool, $2,500 event and production), with final terms agreed in conversation. Prize funding, event operations, and any later code purchase must be explicit and distinct.
 
 The event sells access to demonstrated outcomes and independent ideas. It does not sell participants’ email addresses or unrestricted repository access. Recruiting introductions require participant agreement.
 
