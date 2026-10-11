@@ -25,6 +25,7 @@ const app = createApp({
   organizerPassword,
   seed: demo ? { demo: JSON.parse(readFileSync(join(root, 'data', 'demo.json'), 'utf8')), password: 'letscode-demo' } : null,
   secureCookies: env.SECURE_COOKIES === '1',
+  trustProxy: env.TRUST_PROXY === '1',
 });
 
 createServer(app.handler).listen(port, host, () => {

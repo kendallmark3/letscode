@@ -17,14 +17,14 @@ export const refused = (r, status, code) => {
   assert.equal(r.error.code, code);
 };
 
-export function harness() {
+export function harness(options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'letscode-'));
   const h = { dataFile: join(dir, 'state.json'), base: '', logs: [], people: {} };
   let server;
 
   h.start = () => {
     h.logs = [];
-    const app = createApp({ dataFile: h.dataFile, publicDir, organizerEmail: ORG.email, organizerPassword: ORG.password, log: (m) => h.logs.push(String(m)) });
+    const app = createApp({ dataFile: h.dataFile, publicDir, organizerEmail: ORG.email, organizerPassword: ORG.password, log: (m) => h.logs.push(String(m)), ...options });
     server = createServer(app.handler);
     return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
       h.base = `http://127.0.0.1:${server.address().port}`;
