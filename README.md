@@ -18,7 +18,7 @@ This is an intent package for your coding agent, not an implemented application.
 Requires Node 20 or newer. There is nothing to install.
 
 ```
-npm run demo     # fictional accounts and a sample competition; logins are shown at the top of the page
+npm run demo     # fictional accounts and a sample event; logins are shown at the top of the page
 npm start        # real mode: starts empty; set ORGANIZER_EMAIL and ORGANIZER_PASSWORD
 npm test         # rule and API checks
 ```

@@ -87,7 +87,7 @@ const STATUS_LABEL = {
   closed: 'Closed',
 };
 
-const TEAM_STATUS = { FORMING: ['Forming', ''], READY: ['Ready', 'warn'], ENROLLED: ['Enrolled', 'ok'] };
+const TEAM_STATUS = { FORMING: ['Forming', ''], READY: ['Team complete', 'warn'], ENROLLED: ['Registered · locked', 'ok'] };
 const statusTag = (status) => `<span class="tag ${TEAM_STATUS[status][1]}">${TEAM_STATUS[status][0]}</span>`;
 
 let toastTimer;
@@ -136,12 +136,10 @@ function header() {
 }
 
 function statusLine(me) {
+  if (me.isIneligible) return 'Not taking part in this event';
   const team = view.team;
-  if (team && team.members.length > 1) return `On <strong>${h(team.name)}</strong>`;
-  const bits = [];
-  if (team) bits.push(`Drafting <strong>${h(team.name)}</strong>`);
-  bits.push(me.isOpen ? 'Open to invitations' : 'Not accepting invitations');
-  return bits.join(' · ');
+  if (team) return `${team.isLeader ? 'Leading' : 'On'} <strong>${h(team.name)}</strong>`;
+  return me.isOpen ? 'Open to invitations' : 'Not accepting invitations';
 }
 
 function identityStrip() {
@@ -151,7 +149,7 @@ function identityStrip() {
       <span class="avatar" style="--hue:20" aria-hidden="true">★</span>
       <div>
         <p class="me-name">Organizer</p>
-        <p class="me-status">Manages competitions and enrollment. Does not take part in teams.</p>
+        <p class="me-status">Manages events. Does not take part in teams.</p>
       </div>
     </section>`;
   }
@@ -162,7 +160,7 @@ function identityStrip() {
     ${avatar(me)}
     <div>
       <p class="me-name">${h(me.displayName)}</p>
-      <p class="me-status">${view.challenge ? statusLine(me) : 'No competition is open'}</p>
+      <p class="me-status">${view.challenge ? statusLine(me) : 'No event is open'}</p>
     </div>
     <p class="me-email"><span class="hint">Private email, visible only to you</span><br>${h(me.email)}</p>
   </section>`;
@@ -185,15 +183,17 @@ function availabilityButton(me) {
     : `<button class="btn primary" data-action="open" data-fk="availability">Open me to invitations</button>`;
 }
 
+const INELIGIBLE_TEXT = 'You abandoned a team after people had committed to it, so you can’t take part in the rest of this event. You’re welcome in the next one.';
+
 function nextStep() {
   const closed = !view.challenge.enrollmentOpen;
   if (view.role === 'organizer') {
-    return `<section class="card cta"><h2>You’re signed in as the organizer</h2><div class="row"><a class="btn primary large" href="#admin">Manage competitions</a></div></section>`;
+    return `<section class="card cta"><h2>You’re signed in as the organizer</h2><div class="row"><a class="btn primary large" href="#admin">Manage events</a></div></section>`;
   }
   const team = view.team;
   if (team) {
     const open = team.openSeats;
-    const heading = { ENROLLED: `${h(team.name)} has joined the competition`, READY: `${h(team.name)} is ready to join the competition` }[team.status]
+    const heading = { ENROLLED: `${h(team.name)} is registered`, READY: `${h(team.name)} is complete and ready to register` }[team.status]
       ?? `${h(team.name)} has ${open} open ${open === 1 ? 'seat' : 'seats'}`;
     return `
     <section class="card cta">
@@ -205,7 +205,7 @@ function nextStep() {
     </section>`;
   }
   if (closed) {
-    return `<section class="card cta"><h2>Enrollment is closed</h2><p class="muted">Teams can no longer be formed or entered for this competition. The next one will open separately.</p></section>`;
+    return `<section class="card cta"><h2>This event is closed</h2><p class="muted">Teams can no longer be formed, joined or registered. The next event will open separately.</p></section>`;
   }
   if (view.role === 'visitor') {
     return `
@@ -219,13 +219,16 @@ function nextStep() {
     </section>`;
   }
   const me = view.me;
+  if (me.isIneligible) {
+    return `<section class="card cta"><h2>You’re sitting this event out</h2><p class="muted">${INELIGIBLE_TEXT}</p></section>`;
+  }
   return `
   <section class="card cta">
     <h2>You’re in, ${h(me.displayName.split(' ')[0])}. Choose how to find your team.</h2>
     <div class="choices">
       <div class="choice">
-        <h3>Assemble a team</h3>
-        <p class="muted">Start a four-seat team and invite people with the skills you’re missing.</p>
+        <h3>Lead a team</h3>
+        <p class="muted">Start a four-seat team and invite people with the skills you’re missing. Leading is a commitment: you can’t join another team while yours exists.</p>
         ${createTeamForm(me)}
       </div>
       <div class="choice">
@@ -239,11 +242,11 @@ function nextStep() {
 
 function challengeView() {
   const c = view.challenge;
-  if (!c) return noChallenge('No competition is open right now');
+  if (!c) return noChallenge('No event is open right now');
   const prize = c.illustrativePrizeUSD ? `$${Number(c.illustrativePrizeUSD).toLocaleString('en-US')}` : '';
   return `
   <section class="hero">
-    <p class="eyebrow">Intent Driven Saturdays ${prize ? '<span class="tag warn">Illustrative demo</span>' : ''} <span class="tag ${c.enrollmentOpen ? 'ok' : ''}">${c.enrollmentOpen ? 'Enrollment open' : 'Enrollment closed'}</span></p>
+    <p class="eyebrow">Intent Driven Saturdays ${prize ? '<span class="tag warn">Illustrative demo</span>' : ''} <span class="tag ${c.enrollmentOpen ? 'ok' : ''}">${c.enrollmentOpen ? 'Open' : 'Closed'}</span></p>
     <h1 tabindex="-1">${h(c.title)}</h1>
     <p class="tagline">Find your team. Build your proof.</p>
     <p class="lede">${h(c.preview)}</p>
@@ -258,9 +261,9 @@ function challengeView() {
   </section>
   ${nextStep()}
   <section class="steps" aria-label="How it works">
-    <div><span class="num">1</span><h3>Say what you’re good at</h3><p>Name, picture and a few skill tags. Your email stays private.</p></div>
-    <div><span class="num">2</span><h3>Find complementary skills</h3><p>Search people who opted into this competition and invite them. They choose whether to accept.</p></div>
-    <div><span class="num">3</span><h3>Fill four seats and join</h3><p>Four accepted members make a team ready. It then joins the competition.</p></div>
+    <div><span class="num">1</span><h3>Invite is tentative</h3><p>A leader invites people with the skills the team needs. Nothing is settled until they answer.</p></div>
+    <div><span class="num">2</span><h3>Accept is commitment</h3><p>Accepting takes a seat. From then on you can’t join or lead another team in this event.</p></div>
+    <div><span class="num">3</span><h3>Register is locked</h3><p>With four committed members, the leader registers the team and the roster is locked.</p></div>
   </section>`;
 }
 
@@ -269,7 +272,11 @@ function personCard(p) {
   if (!p.inviteBlock) {
     action = `<button class="btn primary" data-action="invite" data-id="${h(p.id)}" data-name="${h(p.displayName)}" data-fk="invite-${h(p.id)}">Invite to team</button>`;
   } else if (p.inviteBlock[0] === 'no_team') {
-    action = view.challenge.enrollmentOpen ? `<a class="btn ghost" href="#team">Create a team to invite</a>` : `<p class="blocked">Enrollment is closed.</p>`;
+    action = !view.challenge.enrollmentOpen
+      ? `<p class="blocked">This event is closed.</p>`
+      : view.me.isIneligible
+        ? ''
+        : `<a class="btn ghost" href="#team">Create a team to invite</a>`;
   } else {
     action = `<p class="blocked">${h(p.inviteBlock[1])}</p>`;
   }
@@ -290,7 +297,7 @@ function peopleResults() {
     return `
     <div class="empty">
       <h3>${any ? `No one matches “${h(ui.query)}”` : 'No one is open to invitations right now'}</h3>
-      <p>${any ? 'Try a broader skill, or clear the search to see everyone.' : 'People appear here once they opt in to this competition.'}</p>
+      <p>${any ? 'Try a broader skill, or clear the search to see everyone.' : 'People appear here once they opt in to this event.'}</p>
       ${any ? `<button class="btn ghost" data-action="clear-search">Clear search</button>` : ''}
     </div>`;
   }
@@ -313,7 +320,7 @@ function peopleView() {
   const on = (s) => ui.query.toLowerCase() === s.toLowerCase();
   return `
   <h1 tabindex="-1">Find teammates</h1>
-  <p class="lede">Everyone here opted in to this competition. You see a name, a picture and skills. Nothing else.</p>
+  <p class="lede">Everyone here opted in to this event. You see a name, a picture and skills. Nothing else.</p>
   ${
     team
       ? `<a class="team-summary" href="#team">
@@ -346,7 +353,7 @@ function seat(m, i, me, size) {
   <li class="seat filled">
     ${avatar(m, 'large')}
     <h3>${h(m.displayName)}${mine ? ' <span class="tag">you</span>' : ''}</h3>
-    ${m.isCreator ? '<p class="muted small">Started the team</p>' : ''}
+    ${m.isCreator ? '<p class="muted small">Team leader</p>' : ''}
     ${chips(m.skills)}
     ${contact}
   </li>`;
@@ -356,15 +363,28 @@ function seat(m, i, me, size) {
 function enrollCard(team) {
   const closed = !view.challenge.enrollmentOpen;
   if (team.status === 'ENROLLED') {
-    return `<section class="card enroll done"><h2>You’re in the competition</h2><p>${h(team.name)} has joined <strong>${h(view.challenge.title)}</strong> with all four members. The organizer has been told.</p></section>`;
+    return `<section class="card enroll done"><h2>Registered. The roster is locked.</h2><p>${h(team.name)} is entered in <strong>${h(view.challenge.title)}</strong> with all four members, and the organizer has been told. Nobody can leave or be replaced now; if something has to change, ask the organizer.</p></section>`;
   }
   if (team.status !== 'READY') return '';
   if (team.canEnroll) {
-    return `<section class="card enroll"><h2>All four seats are filled</h2><p>Enter ${h(team.name)} into <strong>${h(view.challenge.title)}</strong>. This confirms the team for the competition.</p><div><button class="btn primary large" data-action="enroll" data-fk="enroll">Join Competition</button></div></section>`;
+    return `<section class="card enroll"><h2>All four seats are filled</h2><p>Register ${h(team.name)} for <strong>${h(view.challenge.title)}</strong>. Registering locks the roster: after this, nobody can leave or be replaced.</p><div><button class="btn primary large" data-action="enroll" data-fk="enroll">Register team</button></div></section>`;
   }
   return `<section class="card enroll"><h2>All four seats are filled</h2><p class="muted">${
-    closed ? 'Enrollment has closed, so this team can no longer be entered.' : `Waiting for ${h(team.creatorName)}, who started the team, to join the competition.`
+    closed ? 'The event has closed, so this team can no longer be registered.' : `Waiting for ${h(team.creatorName)}, the team leader, to register the team.`
   }</p></section>`;
+}
+
+// How a roster can still shrink before registration, and what it costs.
+function changeCard(team) {
+  if (!team.canChange) return '';
+  const others = team.members.length - 1;
+  if (!team.isLeader) {
+    return `<section class="card subtle"><h2>Need to step out?</h2><p class="muted">Until the team registers you can leave. You go back to the pool of available people, your seat reopens, and the leader is not penalised.</p><div><button class="btn danger" data-action="leave" data-fk="leave">Leave this team</button></div></section>`;
+  }
+  if (!others) {
+    return `<section class="card subtle"><h2>Changed your mind?</h2><p class="muted">Nobody else has accepted yet, so you can abandon this team freely. Its open invitations are closed.</p><div><button class="btn danger" data-action="abandon" data-fk="abandon">Abandon this team</button></div></section>`;
+  }
+  return `<section class="card subtle warn-card"><h2>Abandoning this team</h2><p><strong>${others} ${others === 1 ? 'person has' : 'people have'} committed to this team.</strong> If you abandon it, the team is dissolved, they are released without penalty, and <strong>you cannot take part in the rest of this event</strong>.</p><p class="muted">You cannot remove a committed member to make room for someone else.</p><div><button class="btn danger" data-action="abandon" data-others="${others}" data-fk="abandon">Abandon team and leave the event</button></div></section>`;
 }
 
 function teamView() {
@@ -376,15 +396,20 @@ function teamView() {
     <h1 tabindex="-1">My team</h1>
     <div class="empty">
       <h3>You don’t have a team yet</h3>
-      ${closed ? '<p>Enrollment for this competition is closed, so new teams can no longer be formed.</p>' : `<p>Start one and invite people, or stay open to invitations and join someone else’s.</p>${createTeamForm(me)}`}
+      ${
+        closed
+          ? '<p>This event is closed, so new teams can no longer be formed.</p>'
+          : me.isIneligible
+            ? `<p>${INELIGIBLE_TEXT}</p>`
+            : `<p>Lead one and invite people, or stay open to invitations and join someone else’s.</p>${createTeamForm(me)}`
+      }
     </div>`;
   }
   const pending = v.invitations.filter((i) => i.status === 'pending');
   const past = v.invitations.filter((i) => i.status !== 'pending' && i.status !== 'accepted');
-  const solo = v.members.length === 1;
   return `
   <h1 tabindex="-1">${h(v.name)}</h1>
-  <p class="lede">${statusTag(v.status)} ${v.members.length} of ${v.seats.length} seats filled${solo ? ' · draft' : ''}</p>
+  <p class="lede">${statusTag(v.status)} ${v.members.length} of ${v.seats.length} seats filled</p>
   ${enrollCard(v)}
   <ul class="seats">${v.seats.map((m, i) => seat(m, i, me, v.seats.length)).join('')}</ul>
 
@@ -396,6 +421,7 @@ function teamView() {
 
   <section class="card">
     <h2>Invitations sent</h2>
+    <p class="muted small">An invitation is tentative. A seat is taken only when the person accepts.</p>
     ${
       pending.length
         ? `<ul class="list">${pending
@@ -422,11 +448,7 @@ function teamView() {
     </label>
   </section>
 
-  ${
-    solo
-      ? `<section class="card subtle"><h2>Changed your mind?</h2><p class="muted">A draft with no other members can be abandoned. Its open invitations are closed.</p><button class="btn danger" data-action="abandon" data-fk="abandon">Abandon this draft</button></section>`
-      : ''
-  }`;
+  ${changeCard(v)}`;
 }
 
 function noChallenge(title) {
@@ -434,8 +456,8 @@ function noChallenge(title) {
   <h1 tabindex="-1">${title}</h1>
   <div class="empty">
     <h3>Nothing to join yet</h3>
-    <p>Teams form around an open competition. When the organizer opens one, it appears here.</p>
-    ${view.role === 'organizer' ? `<a class="btn primary" href="#admin">Manage competitions</a>` : ''}
+    <p>Teams form around an open event. When the organizer opens one, it appears here.</p>
+    ${view.role === 'organizer' ? `<a class="btn primary" href="#admin">Manage events</a>` : ''}
   </div>`;
 }
 
@@ -445,30 +467,25 @@ function needAccount(title) {
   <h1 tabindex="-1">${title}</h1>
   <div class="empty">
     <h3>${organizer ? 'This is for participants' : 'Log in to continue'}</h3>
-    <p>${organizer ? 'The organizer account manages competitions and does not join teams.' : 'You need an account to find teammates, form a team and receive invitations.'}</p>
-    ${organizer ? `<a class="btn primary" href="#admin">Manage competitions</a>` : `<div class="row"><a class="btn primary" href="#join">Join free</a><a class="btn ghost" href="#login">Log in</a></div>`}
+    <p>${organizer ? 'The organizer account manages events and does not join teams.' : 'You need an account to find teammates, form a team and receive invitations.'}</p>
+    ${organizer ? `<a class="btn primary" href="#admin">Manage events</a>` : `<div class="row"><a class="btn primary" href="#join">Join free</a><a class="btn ghost" href="#login">Log in</a></div>`}
   </div>`;
 }
 
 function invitationCard(v) {
-  const draft = view.team;
-  const closed = !view.challenge.enrollmentOpen;
-  const accept = closed
-    ? `<p class="notice small">Enrollment has closed, so this invitation can no longer be accepted.</p>`
-    : draft
-      ? `<p class="notice small">You have a draft team, <strong>${h(draft.name)}</strong>. Joining this team abandons that draft and closes its invitations.</p>
-         <button class="btn primary" data-action="accept" data-abandon="1" data-id="${h(v.id)}" data-fk="accept">Abandon my draft and join</button>`
-      : `<button class="btn primary" data-action="accept" data-id="${h(v.id)}" data-fk="accept">Accept and join</button>`;
+  const accept = view.challenge.enrollmentOpen
+    ? `<button class="btn primary" data-action="accept" data-id="${h(v.id)}" data-fk="accept">Accept and commit</button>`
+    : `<p class="notice small">The event has closed, so this invitation can no longer be accepted.</p>`;
   return `
   <article class="card invitation">
     <p class="eyebrow">Invitation · ${timeLeft(v.expiresAt)}</p>
     <h2>Join ${h(v.teamName)}</h2>
-    <p class="muted">For <strong>${h(v.challenge.title)}</strong> · ${h(v.challenge.durationHours)}-hour competition</p>
+    <p class="muted">For <strong>${h(v.challenge.title)}</strong> · ${h(v.challenge.durationHours)}-hour event</p>
     <h3 class="sub">Current members</h3>
     <ul class="list">${v.members.map((m) => `<li>${avatar(m)}<div><strong>${h(m.displayName)}</strong><br><span class="muted small">${h(m.skills.join(', '))}</span></div></li>`).join('')}</ul>
     <h3 class="sub">Skills on the team</h3>
     ${chips(v.skills)}
-    <p><strong>${v.openSeats}</strong> of ${h(v.challenge.teamSize)} seats remaining. Accepting commits you to this team for the competition.</p>
+    <p><strong>${v.openSeats}</strong> of ${h(v.challenge.teamSize)} seats remaining. Accepting is a commitment: you take a seat and can’t join or lead another team in this event.</p>
     <div class="actions">
       ${accept}
       <button class="btn ghost" data-action="decline" data-id="${h(v.id)}" data-fk="decline">Decline</button>
@@ -483,23 +500,25 @@ function inboxView() {
   let body;
   if (view.invitation) {
     body = invitationCard(view.invitation);
+  } else if (me.isIneligible) {
+    body = `<div class="empty"><h3>You’re sitting this event out</h3><p>${INELIGIBLE_TEXT}</p></div>`;
   } else if (me.isCommitted) {
-    body = `<div class="empty"><h3>You’ve joined a team</h3><p>You’re committed for this competition, so no further invitations will arrive.</p><a class="btn primary" href="#team">View my team</a></div>`;
+    body = `<div class="empty"><h3>You’re on a team</h3><p>You’re committed for this event, so no further invitations will arrive.</p><a class="btn primary" href="#team">View my team</a></div>`;
   } else if (me.isOpen) {
     body = `<div class="empty"><h3>Nothing yet</h3><p>You’re visible in discovery. When a team invites you, it appears here. Only one invitation reaches you at a time.</p></div>`;
   } else {
-    body = `<div class="empty"><h3>Invitations are off</h3><p>${closed ? 'Enrollment for this competition is closed.' : 'You’re not shown in discovery and no team can invite you. Turn invitations on when you’re ready.'}</p></div>`;
+    body = `<div class="empty"><h3>Invitations are off</h3><p>${closed ? 'This event is closed.' : 'You’re not shown in discovery and no team can invite you. Turn invitations on when you’re ready.'}</p></div>`;
   }
   return `
   <h1 tabindex="-1">Inbox</h1>
   <p class="lede">A quiet inbox: at most one invitation at a time.</p>
   ${body}
   ${
-    me.isCommitted || (closed && !me.isOpen)
+    me.isCommitted || me.isIneligible || (closed && !me.isOpen)
       ? ''
       : `<section class="card">
           <h2>Availability</h2>
-          <p class="muted">${me.isOpen ? 'You are open to invitations for this competition.' : 'You are not accepting invitations.'}${view.invitation ? ' Pausing closes the invitation above.' : ''}</p>
+          <p class="muted">${me.isOpen ? 'You are open to invitations for this event.' : 'You are not accepting invitations.'}${view.invitation ? ' Pausing closes the invitation above.' : ''}</p>
           ${availabilityButton(me)}
         </section>`
   }
@@ -565,7 +584,7 @@ function joinView() {
 function challengeForm(c) {
   return `
   <section class="card form-card" aria-labelledby="chf-h">
-    <h2 id="chf-h" tabindex="-1">${c ? `Edit “${h(c.title)}”` : 'Add a competition'}</h2>
+    <h2 id="chf-h" tabindex="-1">${c ? `Edit “${h(c.title)}”` : 'Add an event'}</h2>
     <form data-form="challenge" data-id="${h(c?.id ?? '')}" novalidate>
       <div class="field"><label for="ch-title">Title</label><input id="ch-title" name="title" maxlength="80" required value="${h(c?.title ?? '')}"></div>
       <div class="field">
@@ -586,20 +605,20 @@ function challengeForm(c) {
 function challengeRow(c) {
   const isLive = c.status === 'live';
   const enrolled = c.enrolled.length
-    ? `<h3 class="sub">Enrolled teams</h3><ul class="list">${c.enrolled.map((t) => `<li><div><strong>${h(t.name)}</strong><br><span class="muted small">${h(t.members.join(', '))}</span></div><span class="tag ok">Enrolled</span></li>`).join('')}</ul>`
+    ? `<h3 class="sub">Registered teams</h3><ul class="list">${c.enrolled.map((t) => `<li><div><strong>${h(t.name)}</strong><br><span class="muted small">${h(t.members.join(', '))}</span></div><span class="tag ok">Registered</span></li>`).join('')}</ul>`
     : '';
   return `
   <li class="card challenge-row">
     <div class="challenge-info">
-      <h2>${h(c.title)} <span class="tag ${isLive ? 'ok' : ''}">${isLive ? 'Live' : 'Draft'}</span>${isLive ? ` <span class="tag ${c.enrollmentOpen ? 'ok' : 'warn'}">${c.enrollmentOpen ? 'Enrollment open' : 'Enrollment closed'}</span>` : ''}</h2>
-      <p class="muted">${longDate(c)} · ${c.teamCount} ${c.teamCount === 1 ? 'team' : 'teams'} · ${c.enrolled.length} enrolled</p>
+      <h2>${h(c.title)} <span class="tag ${isLive ? 'ok' : ''}">${isLive ? 'Live' : 'Draft'}</span>${isLive ? ` <span class="tag ${c.enrollmentOpen ? 'ok' : 'warn'}">${c.enrollmentOpen ? 'Open' : 'Closed'}</span>` : ''}</h2>
+      <p class="muted">${longDate(c)} · ${c.teamCount} ${c.teamCount === 1 ? 'team' : 'teams'} · ${c.enrolled.length} registered</p>
       ${c.preview ? `<p>${h(c.preview)}</p>` : '<p class="muted">No description yet.</p>'}
       ${enrolled}
     </div>
     <div class="row">
       ${
         isLive
-          ? `<button class="btn ${c.enrollmentOpen ? 'ghost' : 'primary'}" data-action="set-enrollment" data-open="${c.enrollmentOpen ? '' : '1'}" data-id="${h(c.id)}" data-fk="enrollment-${h(c.id)}">${c.enrollmentOpen ? 'Close enrollment' : 'Open enrollment'}</button>
+          ? `<button class="btn ${c.enrollmentOpen ? 'ghost' : 'primary'}" data-action="set-enrollment" data-open="${c.enrollmentOpen ? '' : '1'}" data-id="${h(c.id)}" data-fk="enrollment-${h(c.id)}">${c.enrollmentOpen ? 'Close event' : 'Reopen event'}</button>
              <button class="btn ghost" data-action="unpublish" data-id="${h(c.id)}" data-fk="live-${h(c.id)}">Take offline</button>`
           : `<button class="btn primary" data-action="publish" data-id="${h(c.id)}" data-fk="live-${h(c.id)}">Make live</button>`
       }
@@ -614,23 +633,23 @@ function adminView() {
   const live = challenges.find((c) => c.status === 'live');
   const editing = ui.editing && ui.editing !== 'new' ? challenges.find((c) => c.id === ui.editing) : null;
   return `
-  <h1 tabindex="-1">Competitions</h1>
-  <p class="lede">Add competitions, give each a date, make one live, and open or close its enrollment.</p>
+  <h1 tabindex="-1">Events</h1>
+  <p class="lede">Add events, give each a date, make one live, and close it at the cutoff. Closing freezes teams; taking an event offline makes room for the next.</p>
   ${
     notifications.length
-      ? `<section class="card enroll" aria-label="New enrollments">
-          <h2>New enrollments</h2>
-          <ul class="list">${notifications.map((n) => `<li><div><strong>${h(n.teamName)}</strong> joined ${h(n.challengeTitle)}<br><span class="muted small">${new Date(n.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span></div></li>`).join('')}</ul>
+      ? `<section class="card enroll" aria-label="New registrations">
+          <h2>New registrations</h2>
+          <ul class="list">${notifications.map((n) => `<li><div><strong>${h(n.teamName)}</strong> registered for ${h(n.challengeTitle)}<br><span class="muted small">${new Date(n.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span></div></li>`).join('')}</ul>
           <div><button class="btn ghost" data-action="mark-seen" data-fk="mark-seen">Mark as seen</button></div>
         </section>`
       : ''
   }
-  <p class="notice small">${live ? `<strong>${h(live.title)}</strong> is live.` : '<strong>Nothing is live.</strong> Participants cannot form teams.'} One competition is live at a time.</p>
-  ${ui.editing ? challengeForm(editing) : `<div><button class="btn primary" data-action="new-challenge" data-fk="new-challenge">Add a competition</button></div>`}
+  <p class="notice small">${live ? `<strong>${h(live.title)}</strong> is live.` : '<strong>Nothing is live.</strong> Participants cannot form teams.'} One event is live at a time.</p>
+  ${ui.editing ? challengeForm(editing) : `<div><button class="btn primary" data-action="new-challenge" data-fk="new-challenge">Add an event</button></div>`}
   ${
     challenges.length
       ? `<ul class="challenge-list">${challenges.map(challengeRow).join('')}</ul>`
-      : `<div class="empty"><h3>No competitions yet</h3><p>Add the first one to get started.</p></div>`
+      : `<div class="empty"><h3>No events yet</h3><p>Add the first one to get started.</p></div>`
   }`;
 }
 
@@ -643,7 +662,7 @@ function currentView() {
   if (v === 'admin') {
     return view.role === 'organizer'
       ? adminView()
-      : `<h1 tabindex="-1">Organizers only</h1><div class="empty"><h3>This screen is for the organizer</h3><p>Competitions are managed by the organizer, who logs in with the organizer account.</p><a class="btn ghost" href="#challenge">Back to the competition</a></div>`;
+      : `<h1 tabindex="-1">Organizers only</h1><div class="empty"><h3>This screen is for the organizer</h3><p>Events are managed by the organizer, who logs in with the organizer account.</p><a class="btn ghost" href="#challenge">Back to the event</a></div>`;
   }
   if (v === 'challenge') return challengeView();
   const title = { people: 'Find teammates', team: 'My team', inbox: 'Inbox' }[v];
@@ -724,12 +743,20 @@ const actions = {
   withdraw: (el) => act('withdraw', { id: el.dataset.id }, 'Invitation withdrawn.'),
   decline: (el) => act('decline', { id: el.dataset.id }, 'Invitation declined.'),
   async accept(el) {
-    if (await act('accept', { id: el.dataset.id, abandonDraft: el.dataset.abandon === '1' }, 'You’ve joined the team.')) go('team');
+    if (await act('accept', { id: el.dataset.id }, 'You’ve committed to the team.')) go('team');
   },
-  enroll: () => act('enroll', {}, 'Your team has joined the competition. The organizer has been told.'),
-  abandon() {
-    if (!confirm('Abandon this draft team? Its open invitations will be closed.')) return;
-    act('abandonDraft', {}, 'Draft abandoned.');
+  enroll: () => act('enroll', {}, 'Your team is registered. The roster is locked and the organizer has been told.'),
+  abandon(el) {
+    const others = Number(el.dataset.others ?? 0);
+    const warning = others
+      ? `Abandon this team?\n\n${others} ${others === 1 ? 'person has' : 'people have'} committed to it. They will be released without penalty.\n\nYou will NOT be able to take part in the rest of this event.`
+      : 'Abandon this team? Nobody else has accepted, so there is no consequence. Its open invitations will be closed.';
+    if (!confirm(warning)) return;
+    act('abandonTeam', {}, others ? 'Team dissolved. Its members were released, and you are out of this event.' : 'Team abandoned.');
+  },
+  leave() {
+    if (!confirm('Leave this team? You return to the pool of available people and your seat reopens.')) return;
+    act('leaveTeam', {}, 'You’ve left the team and are open to invitations again.');
   },
   'share-email': (el) =>
     act('setShareEmail', { share: el.checked }, el.checked ? 'Your email is now visible to your teammates.' : 'Your email is hidden from teammates again.'),
@@ -758,13 +785,13 @@ const actions = {
     ui.editing = null;
     render({ focusHeading: true });
   },
-  publish: (el) => act('publish', { id: el.dataset.id }, 'The competition is live and enrollment is open.'),
+  publish: (el) => act('publish', { id: el.dataset.id }, 'The event is live and open.'),
   unpublish: (el) => act('unpublish', { id: el.dataset.id }, 'Taken offline. Its teams are kept.'),
   'set-enrollment': (el) =>
-    act('setEnrollment', { id: el.dataset.id, open: el.dataset.open === '1' }, el.dataset.open === '1' ? 'Enrollment is open.' : 'Enrollment is closed. No new teams, members or entries.'),
+    act('setEnrollment', { id: el.dataset.id, open: el.dataset.open === '1' }, el.dataset.open === '1' ? 'The event is open again.' : 'The event is closed. Teams are frozen: no new teams, members or registrations.'),
   'mark-seen': () => act('markSeen', {}),
   'delete-challenge'(el) {
-    if (!confirm('Delete this draft competition?')) return;
+    if (!confirm('Delete this draft event?')) return;
     act('deleteChallenge', { id: el.dataset.id }, 'Draft deleted.');
   },
 };
@@ -838,7 +865,7 @@ app.addEventListener('submit', async (e) => {
     const body = { type: 'saveChallenge', id, title: data.get('title'), preview: data.get('preview'), date: data.get('date') };
     if (!(await submitForm(form, '/api/action', body, { bad_title: 'ch-title', bad_preview: 'ch-preview', bad_date: 'ch-date' }))) return;
     ui.editing = null;
-    toast(id ? 'Competition updated.' : 'Draft saved. Make it live when it is ready.');
+    toast(id ? 'Event updated.' : 'Draft saved. Make it live when it is ready.');
     render({ focusHeading: true });
   }
 });

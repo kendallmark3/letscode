@@ -26,10 +26,11 @@ class HttpError extends Error {
 // What a signed-in participant may do. The actor is always the session's own id.
 const PARTICIPANT_ACTIONS = {
   createTeam: (s, id, a, now) => D.createTeam(s, id, a.name, now),
-  abandonDraft: (s, id, a, now) => D.abandonDraft(s, id, now),
+  abandonTeam: (s, id, a, now) => D.abandonTeam(s, id, now),
+  leaveTeam: (s, id, a, now) => D.leaveTeam(s, id, now),
   invite: (s, id, a, now) => D.invite(s, id, String(a.toId), now),
   withdraw: (s, id, a, now) => D.withdraw(s, String(a.id), id, now),
-  accept: (s, id, a, now) => D.accept(s, String(a.id), id, now, { abandonDraft: a.abandonDraft === true }),
+  accept: (s, id, a, now) => D.accept(s, String(a.id), id, now),
   decline: (s, id, a, now) => D.decline(s, String(a.id), id, now),
   setOpen: (s, id, a, now) => D.setOpen(s, id, a.open === true, now),
   setShareEmail: (s, id, a) => D.setShareEmail(s, id, a.share === true),
@@ -76,6 +77,7 @@ export function createApp({
   // inside one synchronous step cannot interleave with another user's action.
   function commit(next) {
     if (next === state) return;
+    D.checkIntegrity(next);
     mkdirSync(dirname(dataFile), { recursive: true });
     const tmp = `${dataFile}.tmp`;
     writeFileSync(tmp, JSON.stringify(next));
