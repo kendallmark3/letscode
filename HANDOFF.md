@@ -28,6 +28,15 @@ Where sponsor.md and the site disagreed, as agreed with Mark:
 
 Promised to sponsors but not yet possible on the site: **branding and recognition on the challenge page**, and showing developers that a prize is funded. The front page still labels the sample prize "illustrative, not funded". Letting the organizer mark an event's prize as funded and name its sponsor is the obvious next step.
 
+## Live on AWS
+- **URL:** https://d319s4ldap4ljg.cloudfront.net (real mode: it starts empty, with no demo accounts).
+- **Organizer login:** `organizer@example.com`; the password is in `var/aws-organizer.txt` on Mark's machine (not in the repository).
+- **What it is:** one small server (EC2 `t4g.micro`, us-east-2, AWS account `mkendall`) running the app, with its data on the server's own disk, behind CloudFront, which provides the https address. The server has no SSH and accepts traffic only from CloudFront. Everything is tagged `Project=letsgo`.
+- **Update it** after merging to `main`: `AWS_PROFILE=mkendall deploy/aws.sh update` (restarts the server, which pulls the latest `main`). Data is kept.
+- **Remove it:** `AWS_PROFILE=mkendall deploy/aws.sh destroy`, then disable and delete the CloudFront distribution in the console.
+- **Cost:** the server and its address are within this account's free plan allowance while that lasts; afterwards roughly $10 a month.
+- **Limits to know:** traffic between CloudFront and the server is not encrypted (browser to CloudFront is); fixing that needs your own domain. There are no backups of the data file. The address is CloudFront's, not a name of your own.
+
 ## Run it
 Requires Node 20 or newer. Nothing to install.
 

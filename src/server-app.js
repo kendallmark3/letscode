@@ -54,6 +54,7 @@ export function createApp({
   organizerPassword,
   seed = null, // { demo, password } to start a new data file with fictional accounts
   secureCookies = false,
+  trustProxy = false, // behind CloudFront or another proxy that appends the visitor's address
   now = Date.now,
   log = console.log,
 }) {
@@ -92,6 +93,13 @@ export function createApp({
     ...D.viewFor(state, identity),
     demo: seed ? { password: seed.password, organizerEmail: orgEmail, organizerPassword } : null,
   });
+
+  // Who is asking, for the rate limits. Behind a proxy every connection comes from the proxy,
+  // so use the address it appended last to X-Forwarded-For; earlier entries can be forged.
+  function clientAddress(req) {
+    const forwarded = trustProxy ? String(req.headers['x-forwarded-for'] ?? '').split(',').at(-1).trim() : '';
+    return forwarded || req.socket.remoteAddress;
+  }
 
   function cookie(token, maxAgeSeconds) {
     return `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureCookies ? '; Secure' : ''}`;
@@ -170,7 +178,7 @@ export function createApp({
   function login(body, req, res) {
     const email = String(body.email ?? '').trim().toLowerCase();
     const password = String(body.password ?? '');
-    const key = `${req.socket.remoteAddress}|${email}`;
+    const key = `${clientAddress(req)}|${email}`;
     if (attempts.blocked(key)) throw new HttpError(429, 'too_many_attempts', 'Too many attempts. Wait a few minutes and try again.');
     let identity = null;
     if (email === orgEmail) {
@@ -191,7 +199,7 @@ export function createApp({
 
   function inquiry(body, req, res) {
     const identity = identityOf(req);
-    const from = req.socket.remoteAddress;
+    const from = clientAddress(req);
     if (inquiries.blocked(from)) throw new HttpError(429, 'too_many_inquiries', 'That is a lot of inquiries. Please try again in an hour.');
     // A field people never see: anything that fills it is a script, and is quietly ignored.
     if (!body.website) {

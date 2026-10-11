@@ -20,7 +20,9 @@ node --test test/domain.test.mjs            # one file
 node --test --test-name-pattern="enroll"    # tests whose name matches
 ```
 
-Serves http://localhost:4747. The default port is 4747 because 5173 is commonly taken by another dev server on this machine. Environment: `PORT`, `HOST` (default 127.0.0.1), `DATA_FILE`, `ORGANIZER_EMAIL`, `ORGANIZER_PASSWORD` (random per run if unset, printed at start), `SECURE_COOKIES=1`, `DEMO=1`. Demo logins are printed at start and shown in the page banner. Delete the data file to reset; `var/` is git-ignored.
+`deploy/aws.sh` creates, updates or removes the live AWS deployment (one EC2 server behind CloudFront; see HANDOFF.md). The server runs whatever is on `main`, so nothing reaches the live site until it is merged and `deploy/aws.sh update` is run.
+
+Serves http://localhost:4747. The default port is 4747 because 5173 is commonly taken by another dev server on this machine. Environment: `PORT`, `HOST` (default 127.0.0.1), `DATA_FILE`, `ORGANIZER_EMAIL`, `ORGANIZER_PASSWORD` (random per run if unset, printed at start), `SECURE_COOKIES=1`, `TRUST_PROXY=1` (take the visitor's address from the last `X-Forwarded-For` entry, for rate limits behind CloudFront), `DEMO=1`. Demo logins are printed at start and shown in the page banner. Delete the data file to reset; `var/` is git-ignored.
 
 ## Architecture
 
