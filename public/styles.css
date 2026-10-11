@@ -194,6 +194,34 @@ form { display: grid; gap: 14px; }
 .avatar.large { width: 72px; height: 72px; font-size: 1.4rem; }
 .empty-avatar { background: transparent; border: 2px dashed var(--line); color: var(--muted); }
 
+/* ---------- front page ---------- */
+
+.pitch { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(20px, 4vw, 44px); align-items: center; }
+.pitch-text { display: grid; gap: 14px; }
+.pitch h1 {
+  font-size: clamp(2.5rem, 7.5vw, 4.4rem); line-height: 1; letter-spacing: -0.035em;
+  background: linear-gradient(100deg, var(--brand), var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.pitch .eyebrow { font-size: 0.95rem; color: var(--accent); }
+.pitch-lede { font-size: clamp(1.1rem, 2.2vw, 1.3rem); font-weight: 500; max-width: 34ch; }
+.pitch-points { display: grid; gap: 8px; }
+.pitch-points li { padding-left: 28px; position: relative; color: var(--muted); }
+.pitch-points li strong { color: var(--ink); }
+.pitch-points li::before {
+  content: ""; position: absolute; left: 0; top: 0.3em; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--ok) no-repeat center / 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 5.2l2 2 4-4.4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.team-art { display: block; width: 100%; height: auto; border-radius: 28px; box-shadow: var(--shadow); font-family: inherit; }
+.event-title { font-size: clamp(1.5rem, 4vw, 2.2rem); line-height: 1.15; letter-spacing: -0.02em; text-wrap: balance; }
+
+@media (max-width: 760px) {
+  .pitch { grid-template-columns: minmax(0, 1fr); }
+  .team-art { max-width: 440px; margin-inline: auto; }
+  /* On a phone the way in comes before the supporting points. */
+  .pitch-text .row { order: 1; }
+  .pitch-points { order: 2; }
+}
+
 /* ---------- challenge ---------- */
 
 .hero {

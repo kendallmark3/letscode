@@ -129,7 +129,7 @@ function header() {
       : `<button class="btn small ghost" data-action="logout" data-fk="logout">Log out</button>`;
   return `
   <header class="site-header">
-    <a class="brand" href="#challenge"><span class="logo" aria-hidden="true">{ }</span> Let’s Code</a>
+    <a class="brand" href="#challenge"><span class="logo" aria-hidden="true">{ }</span> Let’s Go!</a>
     <nav aria-label="Sections">${tabs}</nav>
     <div class="account">${account}</div>
   </header>`;
@@ -240,14 +240,91 @@ function nextStep() {
   </section>`;
 }
 
+// An original illustration: four teammates around shared work, linked through an AI spark.
+// Colours come from the page's own tokens so it follows light and dark appearance.
+function teamArt() {
+  const person = (x, y, colour, label) => `
+    <g>
+      <path d="M${x - 36} 322 q0 -${322 - y - 26} 36 -${322 - y - 26} q36 0 36 ${322 - y - 26} z" fill="${colour}" opacity="0.9"/>
+      <circle cx="${x}" cy="${y}" r="22" fill="${colour}"/>
+      <rect x="${x - 24}" y="${y - 58}" width="48" height="22" rx="11" fill="var(--surface)" stroke="var(--line)"/>
+      <text x="${x}" y="${y - 43}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${label}</text>
+    </g>`;
+  const link = (x, y) => `<path d="M260 108 Q${(260 + x) / 2} ${y - 120} ${x} ${y - 62}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-dasharray="3 7" stroke-linecap="round" opacity="0.55"/>`;
+  const star = (x, y, s, fill) => `<path transform="translate(${x} ${y}) scale(${s})" d="M0 -10 L2.6 -2.6 L10 0 L2.6 2.6 L0 10 L-2.6 2.6 L-10 0 L-2.6 -2.6 Z" fill="${fill}"/>`;
+  const people = [[74, 236, '#6d5ef0', 'UI'], [150, 262, '#0ea371', 'API'], [370, 262, '#e8590c', 'Tests'], [446, 236, '#d6409f', 'AI']];
+  return `
+  <svg class="team-art" viewBox="0 0 520 380" role="img" aria-labelledby="art-title art-desc">
+    <title id="art-title">A team of four building together</title>
+    <desc id="art-desc">Four teammates with different skills gathered around one shared screen of code. Each is linked to a glowing AI spark above the screen, and the screen carries a badge that reads “proof”.</desc>
+    <defs>
+      <linearGradient id="art-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--brand-soft)"/><stop offset="1" stop-color="var(--accent-soft)"/></linearGradient>
+      <radialGradient id="art-glow"><stop offset="0" stop-color="var(--accent)" stop-opacity="0.5"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></radialGradient>
+    </defs>
+    <rect width="520" height="380" rx="28" fill="url(#art-bg)"/>
+    <circle cx="260" cy="84" r="96" fill="url(#art-glow)"/>
+    <ellipse cx="260" cy="84" rx="92" ry="26" fill="none" stroke="var(--brand)" stroke-opacity="0.3" stroke-width="1.5"/>
+    <ellipse cx="260" cy="84" rx="92" ry="26" fill="none" stroke="var(--brand)" stroke-opacity="0.3" stroke-width="1.5" transform="rotate(60 260 84)"/>
+    <ellipse cx="260" cy="84" rx="92" ry="26" fill="none" stroke="var(--brand)" stroke-opacity="0.3" stroke-width="1.5" transform="rotate(-60 260 84)"/>
+    ${people.map(([x, y]) => link(x, y)).join('')}
+    ${star(260, 84, 3.4, 'var(--accent)')}
+    ${star(260, 84, 1.5, 'var(--surface)')}
+    ${star(108, 62, 0.9, 'var(--brand)')}${star(420, 48, 0.7, 'var(--accent)')}${star(456, 128, 0.6, 'var(--brand)')}${star(58, 132, 0.6, 'var(--accent)')}
+    <rect x="176" y="168" width="168" height="118" rx="12" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>
+    <circle cx="190" cy="181" r="3" fill="var(--accent)"/><circle cx="200" cy="181" r="3" fill="var(--line)"/><circle cx="210" cy="181" r="3" fill="var(--line)"/>
+    <rect x="190" y="196" width="62" height="7" rx="3.5" fill="var(--brand)"/>
+    <rect x="258" y="196" width="40" height="7" rx="3.5" fill="var(--line)"/>
+    <rect x="202" y="212" width="88" height="7" rx="3.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="202" y="228" width="54" height="7" rx="3.5" fill="var(--line)"/>
+    <rect x="262" y="228" width="44" height="7" rx="3.5" fill="var(--brand)" opacity="0.7"/>
+    <rect x="190" y="244" width="72" height="7" rx="3.5" fill="var(--line)"/>
+    <rect x="252" y="286" width="16" height="22" fill="var(--line)"/>
+    <rect x="222" y="306" width="76" height="8" rx="4" fill="var(--line)"/>
+    <g>
+      <rect x="248" y="256" width="88" height="24" rx="12" fill="var(--ok)"/>
+      <path d="M259 268 l5 5 9 -10" fill="none" stroke="var(--surface)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="305" y="272.5" text-anchor="middle" font-size="11" font-weight="800" letter-spacing="1" fill="var(--surface)">PROOF</text>
+    </g>
+    ${people.map((p) => person(...p)).join('')}
+    <rect x="28" y="318" width="464" height="12" rx="6" fill="var(--ink)" opacity="0.14"/>
+  </svg>`;
+}
+
+// What Let's Go! is for, before anything about a particular event.
+function pitch() {
+  return `
+  <section class="pitch">
+    <div class="pitch-text">
+      <p class="eyebrow">Let’s Go!</p>
+      <h1 tabindex="-1">Proof Before Resume</h1>
+      <p class="pitch-lede">Leave the résumé at home. Join a team of four, build something real in one competition, and let what you built speak for you.</p>
+      <ul class="pitch-points">
+        <li><strong>No résumé needed.</strong> A name and a few skills get you in.</li>
+        <li><strong>Build with a team.</strong> Find three teammates and make something real together.</li>
+        <li><strong>Earn recognition.</strong> Winning teams are recognised for what they built: proof you can point to.</li>
+      </ul>
+      ${view.role === 'visitor' ? `<div class="row"><a class="btn primary large" href="#join" data-fk="pitch-join">Join free</a><a class="btn ghost large" href="#login" data-fk="pitch-login">Log in</a></div>` : ''}
+    </div>
+    ${teamArt()}
+  </section>`;
+}
+
 function challengeView() {
   const c = view.challenge;
-  if (!c) return noChallenge('No event is open right now');
+  if (!c) {
+    return `${pitch()}
+    <div class="empty">
+      <h2>No event is open right now</h2>
+      <p>Teams form around an open event. When the organizer opens one, it appears here.</p>
+      ${view.role === 'organizer' ? `<a class="btn primary" href="#admin">Manage events</a>` : ''}
+    </div>`;
+  }
   const prize = c.illustrativePrizeUSD ? `$${Number(c.illustrativePrizeUSD).toLocaleString('en-US')}` : '';
   return `
-  <section class="hero">
+  ${pitch()}
+  <section class="hero" aria-label="The open event">
     <p class="eyebrow">Intent Driven Saturdays ${prize ? '<span class="tag warn">Illustrative demo</span>' : ''} <span class="tag ${c.enrollmentOpen ? 'ok' : ''}">${c.enrollmentOpen ? 'Open' : 'Closed'}</span></p>
-    <h1 tabindex="-1">${h(c.title)}</h1>
+    <h2 class="event-title">${h(c.title)}</h2>
     <p class="tagline">Find your team. Build your proof.</p>
     <p class="lede">${h(c.preview)}</p>
     <dl class="facts">
@@ -679,7 +756,7 @@ function render({ focusHeading = false } = {}) {
     ${header()}
     ${identityStrip()}
     <main id="main" class="view-${ui.view}">${currentView()}</main>
-    <footer class="site-footer">Let’s Code helps programmers arrive alone and leave with a team. Your email is never shown to others unless you share it with your teammates.</footer>`;
+    <footer class="site-footer">Let’s Go! Proof Before Resume. We help programmers arrive alone and leave with a team. Your email is never shown to others unless you share it with your teammates.</footer>`;
   if (focusHeading) {
     app.querySelector('main h1')?.focus();
   } else if (fk) {

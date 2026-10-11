@@ -95,3 +95,15 @@ A real multi-user team-formation application whose competition rules are enforce
 
 ## Success / Evidence
 The sixteen demonstrations listed under "Success Evidence" in `intent/intentv2.md`, shown by automated tests and the running application.
+
+---
+
+# Intent V3a: Let's Go! and Proof Before Resume (2026-10-11)
+
+`intent/intentv3a.md` is Mark's authoritative intent for this step.
+
+## Outcome
+The product is called "Let's Go!", and the front page says what it is for: Proof Before Resume, with a custom image of a team building together in the AI age.
+
+## Success / Evidence
+Logged out, on desktop and phone and in dark appearance, the front page shows the new name, "Proof Before Resume", the team image, the event details and "Join free". No "Let's Code" remains on any screen. All existing tests pass.
