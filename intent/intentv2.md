@@ -1,10 +1,10 @@
-Let’s Code — Progressive Intent V2
+Let’s Go! — Progressive Intent V2
 
 Real Users, Persistent Teams & Competition Rules
 
 Outcome
 
-Turn the existing Let’s Code demonstration into a real multi-user team-formation application.
+Turn the existing Let’s Go! demonstration into a real multi-user team-formation application.
 
 Preserve the existing experience wherever possible. Add registration, login, shared persistence, and enforce the competition rules on the server/database rather than relying on browser state.
 

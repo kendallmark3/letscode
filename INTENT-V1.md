@@ -1,7 +1,7 @@
-# Let’s Code — Progressive Intent V1
+# Let’s Go! — Progressive Intent V1
 
 ## Outcome
-Build a polished, runnable first version of Let’s Code: a free way for programmers to discover teammates and form a four-person team for one Intent Driven Saturdays challenge. A person arriving alone should understand the opportunity, create a minimal profile, and either assemble a team or accept an invitation without maintaining a social network.
+Build a polished, runnable first version of Let’s Go!: a free way for programmers to discover teammates and form a four-person team for one Intent Driven Saturdays challenge. A person arriving alone should understand the opportunity, create a minimal profile, and either assemble a team or accept an invitation without maintaining a social network.
 
 ## Authoritative inputs
 - This intent and PRODUCT-CONTEXT.md contain Mark Kendall’s approved product direction.

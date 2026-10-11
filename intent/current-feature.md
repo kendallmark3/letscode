@@ -1,7 +1,7 @@
-# Let's Code V1
+# Let's Go! V1
 
 ## Outcome
-Build a polished, runnable first version of Let's Code: a free way for programmers to discover teammates and form a four-person team for one Intent Driven Saturdays challenge. A person arriving alone should understand the opportunity, create a minimal profile, and either assemble a team or accept an invitation without maintaining a social network.
+Build a polished, runnable first version of Let's Go!: a free way for programmers to discover teammates and form a four-person team for one Intent Driven Saturdays challenge. A person arriving alone should understand the opportunity, create a minimal profile, and either assemble a team or accept an invitation without maintaining a social network.
 
 ## Inputs
 - INTENT-V1.md and PRODUCT-CONTEXT.md: Mark Kendall's approved product direction.
@@ -66,7 +66,7 @@ As a visitor or participant there is no Admin tab and `#admin` shows an "organiz
 `intent/intentv1.md` (titled "Progressive Intent V2") is Mark's authoritative intent for this step and applies in full. In brief:
 
 ## Outcome
-Move Let's Code from a single-browser demonstration into a simple real-user experience: create an account, log in, view the open competition, create or join one team, complete the four-person team, join the competition. The system knows who each participant is and enforces the rules across users.
+Move Let's Go! from a single-browser demonstration into a simple real-user experience: create an account, log in, view the open competition, create or join one team, complete the four-person team, join the competition. The system knows who each participant is and enforces the rules across users.
 
 ## Success / Evidence
 The twelve demonstrations listed under "Success and Evidence" in `intent/intentv1.md`, shown with separate authenticated users and enforced by the authoritative application state. Existing rule coverage is kept and extended.
@@ -107,3 +107,15 @@ The product is called "Let's Go!", and the front page says what it is for: Proof
 
 ## Success / Evidence
 Logged out, on desktop and phone and in dark appearance, the front page shows the new name, "Proof Before Resume", the team image, the event details and "Join free". No "Let's Code" remains on any screen. All existing tests pass.
+
+---
+
+# Intent V5: Let's Go! rules, confirmed (2026-10-11)
+
+`intent/intentv5.md` restates the commitment rules under the current name, Let's Go!. It is the current authority for the rules and replaces `intent/intentv2.md`, which has the same content.
+
+## Outcome
+The running application satisfies every rule in `intent/intentv5.md` under the name Let's Go!.
+
+## Success / Evidence
+The sixteen demonstrations listed under "Success Evidence" in `intent/intentv5.md` pass as automated tests on the current code.
