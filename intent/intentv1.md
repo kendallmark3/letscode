@@ -1,8 +1,8 @@
-Let’s Code — Progressive Intent V2
+Let’s Go! — Progressive Intent V2
 
 Outcome
 
-Move Let’s Code from a single-browser demonstration into a simple real-user experience.
+Move Let’s Go! from a single-browser demonstration into a simple real-user experience.
 
 A programmer should be able to:
 

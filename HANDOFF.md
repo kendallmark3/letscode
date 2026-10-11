@@ -1,6 +1,6 @@
 # Let's Go! — handoff
 
-Current intent: `intent/intentv2.md` ("Real Users, Persistent Teams & Competition Rules"). It builds on the real-accounts step in `intent/intentv1.md`.
+Current intent for the rules: `intent/intentv5.md` ("Real Users, Persistent Teams & Competition Rules"), which restates `intent/intentv2.md` under the current name and builds on the real-accounts step in `intent/intentv1.md`. It was run against the finished application on 2026-10-11 and needed no code changes: all sixteen of its demonstrations already pass.
 
 The rule the whole experience is built to make obvious:
 
